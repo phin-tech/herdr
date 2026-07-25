@@ -288,6 +288,14 @@ impl App {
         if !self.state.dock_focused || self.state.docked_pane.is_none() {
             return PreparedDockInput::NotFocused;
         }
+        // The dock is a normal focus target, not a modal like the popup, so the
+        // prefix has to keep working -- otherwise focusing the dock traps the
+        // keyboard inside it with no way back out. Mirrors the check in
+        // prepare_terminal_key_forward.
+        if self.state.is_prefix_key(key) {
+            self.state.mode = Mode::Prefix;
+            return PreparedDockInput::Consumed;
+        }
         let Some(terminal_id) = self
             .state
             .docked_pane

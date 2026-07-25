@@ -81,7 +81,10 @@ impl App {
         if self.state.popup_pane.is_some() {
             return self.handle_terminal_key(key).await;
         }
-        if self.state.dock_focused {
+        // Only claim keys while actually typing into the dock. Once the prefix
+        // has switched us out of Terminal mode the normal mode dispatch below
+        // must run, or prefix chords would be swallowed by the docked pane.
+        if self.state.dock_focused && self.state.mode == Mode::Terminal {
             return self.handle_dock_key(key).await;
         }
         let key_event = key.as_key_event();

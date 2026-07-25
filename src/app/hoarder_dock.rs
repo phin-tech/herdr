@@ -271,6 +271,52 @@ mod tests {
         }
     }
 
+    /// Focusing the dock must not trap the keyboard inside it: the prefix key
+    /// has to keep switching to prefix mode instead of being forwarded to the
+    /// docked pane, or there is no keyboard route back out.
+    #[tokio::test]
+    async fn prefix_key_escapes_a_focused_dock_instead_of_reaching_the_pane() {
+        let mut app = app_with_dock();
+        let (runtime, mut rx) = TerminalRuntime::test_with_channel(40, 12);
+        app.install_test_docked_runtime(runtime);
+        app.state.dock_focused = true;
+        app.state.mode = Mode::Terminal;
+
+        let prefix = crate::input::TerminalKey::from(crossterm::event::KeyEvent::new(
+            app.state.prefix_code,
+            app.state.prefix_mods,
+        ));
+        assert!(app.handle_key(prefix).await.is_none());
+
+        assert_eq!(app.state.mode, Mode::Prefix);
+        assert!(
+            rx.try_recv().is_err(),
+            "prefix key must not be forwarded to the docked pane"
+        );
+    }
+
+    /// Once the prefix has been pressed, the following key must reach the
+    /// normal prefix dispatch rather than being swallowed by the dock.
+    #[tokio::test]
+    async fn keys_after_the_prefix_are_not_swallowed_by_a_focused_dock() {
+        let mut app = app_with_dock();
+        let (runtime, mut rx) = TerminalRuntime::test_with_channel(40, 12);
+        app.install_test_docked_runtime(runtime);
+        app.state.dock_focused = true;
+        app.state.mode = Mode::Prefix;
+
+        let key = crate::input::TerminalKey::from(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('c'),
+            crossterm::event::KeyModifiers::empty(),
+        ));
+        let _ = app.handle_key(key).await;
+
+        assert!(
+            rx.try_recv().is_err(),
+            "prefix chords must not leak into the docked pane"
+        );
+    }
+
     #[test]
     fn pane_read_on_dock_id_without_a_dock_reports_pane_not_found() {
         let mut app = app_with_dock();
