@@ -13,7 +13,7 @@ mod api_helpers;
 mod config_io;
 mod creation;
 mod git_refresh;
-mod hoarder_dock;
+pub(crate) mod hoarder_dock;
 mod ids;
 mod input;
 mod popup;
@@ -712,7 +712,8 @@ impl App {
             pane_graphics_streams: std::collections::HashMap::new(),
             pane_graphics_revision: 0,
             popup_pane: None,
-            docked_pane: None,
+            docked_panes: Vec::new(),
+            dock_active: 0,
             plugin_command_logs: Vec::new(),
             next_plugin_command_log_id: 1,
             plugin_commands_in_flight: 0,

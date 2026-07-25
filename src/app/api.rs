@@ -183,13 +183,14 @@ impl App {
                 self.close_popup_pane();
                 return;
             }
-            if self
+            if let Some(index) = self
                 .state
-                .docked_pane
-                .as_ref()
-                .is_some_and(|dock| dock.pane_id == *pane_id)
+                .docked_panes
+                .iter()
+                .position(|dock| dock.pane_id == *pane_id)
             {
-                self.close_docked_pane();
+                // Only this pane died; the rest of the dock stays.
+                self.close_docked_pane_at(index);
                 return;
             }
             let previous_toast = self.state.toast.clone();

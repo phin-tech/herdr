@@ -1165,8 +1165,8 @@ impl App {
         // The docked pane lives outside any workspace, so it has no
         // (ws_idx, pane_id) pair for `parse_pane_id` to return. It is still
         // addressable by the synthetic id that `plugin.pane.open` hands back.
-        if params.pane_id == Self::DOCK_RIGHT_PUBLIC_PANE_ID {
-            let Some(dock) = self.state.docked_pane.as_ref() else {
+        if let Some(index) = self.state.docked_pane_index_for_public_id(&params.pane_id) {
+            let Some(dock) = self.state.docked_panes.get(index) else {
                 return pane_not_found(id, &params.pane_id);
             };
             let Some(runtime) = self.terminal_runtimes.get(&dock.terminal_id) else {
@@ -1182,7 +1182,7 @@ impl App {
                 id,
                 ResponseResult::PaneRead {
                     read: PaneReadResult {
-                        pane_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+                        pane_id: dock.public_id(),
                         workspace_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
                         tab_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
                         source: params.source,

@@ -327,14 +327,18 @@ modal is active, and `plugin.pane.open` returns an `ok` result after launch.
 `placement = "sidebar-right"` docks a plugin pane to the right edge of the
 window as a persistent, resizable, collapsible chrome region that coexists
 with the tiled workspace panes, instead of floating over them like a popup.
-It is a global singleton: only one pane may be docked at a time, and a second
-`plugin.pane.open` with `sidebar-right` returns `ui_busy` while one is already
-open. It does not accept `width`, `height`, `workspace_id`, `target_pane_id`,
+Several plugins may hold docks at once. Opening an entrypoint that is already
+docked focuses it and brings it to the front rather than spawning a second
+copy, so a toggle keybinding is idempotent. It does not accept `width`,
+`height`, `workspace_id`, `target_pane_id`,
 or `direction` — the dock's size is controlled by the user (drag the divider,
 or the `ui.dock_right_width`/`ui.dock_right_min_width`/`ui.dock_right_max_width`
 config keys) rather than by the plugin. Unlike a popup, the docked pane is a
-normal addressable plugin pane: `plugin.pane.focus` and `plugin.pane.close`
-work against its pane ID. The docked process is not restored across a Herdr
+normal addressable plugin pane: `plugin.pane.focus`, `plugin.pane.close` and
+`pane.read` work against its pane ID. Each docked pane has a stable ID of the
+form `dock_right:<plugin-id>.<entrypoint-id>`, which keeps naming the same pane
+when a neighbouring dock closes; the bare `dock_right` is an alias for whichever
+pane is currently showing. The docked process is not restored across a Herdr
 restart — only the dock's width and collapsed state persist, the same as the
 left sidebar.
 

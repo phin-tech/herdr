@@ -285,7 +285,7 @@ impl App {
     }
 
     fn prepare_dock_key_forward(&mut self, key: TerminalKey) -> PreparedDockInput {
-        if !self.state.dock_focused || self.state.docked_pane.is_none() {
+        if !self.state.dock_focused || self.state.docked_pane().is_none() {
             return PreparedDockInput::NotFocused;
         }
         // The dock is a normal focus target, not a modal like the popup, so the
@@ -298,8 +298,7 @@ impl App {
         }
         let Some(terminal_id) = self
             .state
-            .docked_pane
-            .as_ref()
+            .docked_pane()
             .map(|dock| dock.terminal_id.clone())
         else {
             return PreparedDockInput::NotFocused;
@@ -1615,7 +1614,7 @@ mod tests {
         ));
 
         assert_eq!(dock_rx.try_recv().unwrap().as_ref(), b"x");
-        assert!(app.state.docked_pane.is_some());
+        assert!(app.state.docked_pane().is_some());
     }
 
     #[tokio::test]

@@ -434,7 +434,7 @@ pub(super) fn render_popup_pane(
 /// layout split already sized it to (`Constraint::Length(dock_w)`) rather
 /// than a floating geometry resolved against popup width/height params.
 pub(super) fn docked_pane_rects(app: &AppState, area: Rect) -> Option<(Rect, Rect)> {
-    app.docked_pane.as_ref()?;
+    app.docked_pane()?;
     if area.width == 0 || area.height == 0 || app.dock_right_collapsed {
         return None;
     }
@@ -448,7 +448,7 @@ pub(super) fn resize_docked_pane(
     area: Rect,
     cell_size: crate::kitty_graphics::HostCellSize,
 ) {
-    let Some(dock) = app.docked_pane.as_ref() else {
+    let Some(dock) = app.docked_pane() else {
         return;
     };
     let Some((_outer, inner)) = docked_pane_rects(app, area) else {
@@ -473,7 +473,7 @@ pub(super) fn render_docked_pane(
     frame: &mut Frame,
     area: Rect,
 ) {
-    let Some(dock) = app.docked_pane.as_ref() else {
+    let Some(dock) = app.docked_pane() else {
         return;
     };
     if area.width == 0 || area.height == 0 {

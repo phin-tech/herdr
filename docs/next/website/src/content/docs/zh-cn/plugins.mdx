@@ -286,13 +286,15 @@ split、tab、zoomed 和 overlay 插件窗格打开后就是普通的 Herdr 窗�
 
 `placement = "sidebar-right"` 会将插件窗格停靠在窗口右侧边缘,成为一个持久的、
 可调整大小、可折叠的区域,与平铺的工作区窗格共存,而不是像弹窗那样悬浮其上。
-它是一个全局单例:一次只能停靠一个窗格,在已有窗格停靠时再次以 `sidebar-right`
-调用 `plugin.pane.open` 会返回 `ui_busy`。它不接受 `width`、`height`、
+多个插件可以同时停靠。对已停靠的入口点再次调用 `plugin.pane.open` 会聚焦并将其
+置于前台,而不是再启动一个副本,因此切换类快捷键是幂等的。它不接受 `width`、`height`、
 `workspace_id`、`target_pane_id` 或 `direction`——停靠区域的大小由用户控制
 (拖动分隔线,或使用 `ui.dock_right_width`/`ui.dock_right_min_width`/
 `ui.dock_right_max_width` 配置项),而不是由插件控制。与弹窗不同,停靠窗格是
-一个普通的、可寻址的插件窗格:`plugin.pane.focus` 和 `plugin.pane.close`
-可以针对它的窗格 ID 操作。停靠的进程不会在 Herdr 重启后恢复;和左侧边栏一样,
+一个普通的、可寻址的插件窗格:`plugin.pane.focus`、`plugin.pane.close` 和
+`pane.read` 都可以针对它的窗格 ID 操作。每个停靠窗格都有形如
+`dock_right:<plugin-id>.<entrypoint-id>` 的稳定 ID,相邻停靠窗格关闭时它仍指向
+同一个窗格;裸写的 `dock_right` 是当前显示窗格的别名。停靠的进程不会在 Herdr 重启后恢复;和左侧边栏一样,
 只有停靠区域的宽度和折叠状态会被持久化。
 
 ```toml

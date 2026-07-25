@@ -4,7 +4,7 @@ impl AppState {
     /// Hit test for the drag handle between the tiled panes and the right
     /// dock. Mirrors `on_sidebar_divider`.
     pub(super) fn on_dock_right_divider(&self, col: u16, row: u16) -> bool {
-        if self.docked_pane.is_none() || self.dock_right_collapsed {
+        if self.docked_pane().is_none() || self.dock_right_collapsed {
             return false;
         }
         let rect = self.view.dock_right_divider_rect;

@@ -323,14 +323,17 @@ Settings、コピーモード、または別の Herdr モーダルが開いて�
 `placement = "sidebar-right"` は、プラグインペインをウィンドウの右端にドッキングし、
 ポップアップのようにワークスペースの上に浮かぶのではなく、タイル化されたワークスペース
 ペインと共存する永続的でリサイズ・折りたたみ可能なクロム領域として表示します。
-これはグローバルなシングルトンです。ドッキングされたペインは一度に1つだけで、既に1つ
-ドッキングされている状態で `sidebar-right` を指定した2回目の `plugin.pane.open` は
-`ui_busy` を返します。`width`、`height`、`workspace_id`、`target_pane_id`、
+複数のプラグインを同時にドッキングできます。既にドッキング済みのエントリポイントに
+対する `plugin.pane.open` は、2つ目のコピーを起動するのではなくそのペインを前面に
+出してフォーカスするため、トグル用のキーバインドは冪等です。
+`width`、`height`、`workspace_id`、`target_pane_id`、
 `direction` は受け付けません。ドックのサイズはプラグインではなくユーザー(ディバイダーの
 ドラッグ、または `ui.dock_right_width`/`ui.dock_right_min_width`/`ui.dock_right_max_width`
 設定キー)が制御します。ポップアップとは異なり、ドッキングされたペインは通常の
-アドレス指定可能なプラグインペインです。`plugin.pane.focus` と `plugin.pane.close` は
-そのペイン ID に対して機能します。ドッキングされたプロセスは Herdr の再起動時に
+アドレス指定可能なプラグインペインです。`plugin.pane.focus`、`plugin.pane.close`、
+`pane.read` はそのペイン ID に対して機能します。各ドッキングペインは
+`dock_right:<plugin-id>.<entrypoint-id>` という安定した ID を持ち、隣のドックが
+閉じても同じペインを指し続けます。`dock_right` 単体は現在表示中のペインの別名です。ドッキングされたプロセスは Herdr の再起動時に
 復元されません。左サイドバーと同様に、ドックの幅と折りたたみ状態のみが永続化されます。
 
 ```toml

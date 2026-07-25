@@ -226,7 +226,7 @@ impl App {
     /// `target` is `<plugin-id>.<entrypoint-id>`. When the dock already holds
     /// a pane it is closed, so one binding both shows and hides the panel.
     pub(crate) fn toggle_dock_pane_from_keybind(&mut self, target: String) -> Result<(), String> {
-        if self.state.docked_pane.is_some() {
+        if self.state.docked_pane().is_some() {
             self.close_docked_pane();
             return Ok(());
         }
@@ -435,12 +435,20 @@ impl App {
                 "popup panes can only open from the normal workspace view",
             );
         }
-        if placement == PluginPanePlacement::SidebarRight && self.state.docked_pane.is_some() {
-            return encode_error(
-                id,
-                "ui_busy",
-                "a pane is already docked to the right sidebar",
-            );
+        // Re-opening an already-docked entrypoint focuses it rather than
+        // spawning a second copy, so a toggle keybinding is idempotent.
+        if placement == PluginPanePlacement::SidebarRight {
+            if let Some(index) = self.state.docked_pane_index_for(&plugin_id, &entrypoint) {
+                self.state.dock_active = index;
+                if params.focus {
+                    self.state.dock_focused = true;
+                    self.state.mode = crate::app::Mode::Terminal;
+                }
+                self.render_dirty
+                    .store(true, std::sync::atomic::Ordering::Release);
+                self.render_notify.notify_one();
+                return self.encode_docked_pane_opened(id, &plugin_id, &entrypoint);
+            }
         }
         match placement {
             PluginPanePlacement::Overlay | PluginPanePlacement::Popup => {
@@ -507,10 +515,9 @@ impl App {
         id: String,
         params: PluginPaneFocusParams,
     ) -> String {
-        if params.pane_id == crate::app::App::DOCK_RIGHT_PUBLIC_PANE_ID {
-            if self.state.docked_pane.is_none() {
-                return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
-            }
+        if let Some(index) = self.state.docked_pane_index_for_public_id(&params.pane_id) {
+            // Focusing a docked pane also brings it to the front of the dock.
+            self.state.dock_active = index;
             self.state.dock_focused = true;
             self.state.mode = crate::app::Mode::Terminal;
             self.render_dirty
@@ -518,8 +525,7 @@ impl App {
             self.render_notify.notify_one();
             let Some(record) = self
                 .state
-                .docked_pane
-                .as_ref()
+                .docked_pane()
                 .and_then(|dock| self.state.plugin_panes.get(&dock.pane_id).cloned())
             else {
                 return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
@@ -569,8 +575,8 @@ impl App {
         id: String,
         params: PluginPaneCloseParams,
     ) -> String {
-        if params.pane_id == crate::app::App::DOCK_RIGHT_PUBLIC_PANE_ID {
-            if !self.close_docked_pane() {
+        if let Some(index) = self.state.docked_pane_index_for_public_id(&params.pane_id) {
+            if !self.close_docked_pane_at(index) {
                 return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
             }
             return encode_success(
@@ -3845,7 +3851,7 @@ command = ["echo", "dock"]
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn plugin_pane_open_sidebar_right_second_open_returns_ui_busy() {
+    async fn plugin_pane_open_sidebar_right_reopen_focuses_instead_of_duplicating() {
         let mut app = test_app();
         app.state.workspaces = vec![crate::workspace::Workspace::test_new("dock-busy")];
         app.state.ensure_test_terminals();
@@ -3893,11 +3899,19 @@ command = ["sh", "-c", "sleep 5"]
         let ResponseResult::PluginPaneOpened { .. } = response_result(&first) else {
             panic!("expected first dock open to succeed: {first}");
         };
-        assert!(app.state.docked_pane.is_some());
+        assert!(app.state.docked_pane().is_some());
 
+        // Re-opening the same entrypoint focuses the existing pane rather
+        // than spawning a second copy, so a toggle keybinding is idempotent.
         let second = open(&mut app, "dock-open-2");
-        let value: serde_json::Value = serde_json::from_str(&second).unwrap();
-        assert_eq!(value["error"]["code"], "ui_busy");
+        let ResponseResult::PluginPaneOpened { .. } = response_result(&second) else {
+            panic!("expected reopen to succeed: {second}");
+        };
+        assert_eq!(
+            app.state.docked_panes.len(),
+            1,
+            "reopening must not duplicate the docked pane"
+        );
 
         for (_, runtime) in app.terminal_runtimes.drain() {
             runtime.shutdown();
@@ -3951,7 +3965,13 @@ command = ["sh", "-c", "sleep 5"]
         let ResponseResult::PluginPaneOpened { plugin_pane } = response_result(&open) else {
             panic!("expected dock open to succeed: {open}");
         };
-        assert_eq!(plugin_pane.pane.pane_id, "dock_right");
+        // The response names the specific pane so it stays addressable once
+        // other plugins dock alongside it; the bare `dock_right` alias below
+        // still resolves to whichever pane is active.
+        assert_eq!(
+            plugin_pane.pane.pane_id,
+            "dock_right:example.dock-addr.board"
+        );
         assert!(app.state.dock_focused);
 
         let focus = app.handle_api_request(Request {
@@ -3975,7 +3995,7 @@ command = ["sh", "-c", "sleep 5"]
             close.contains("plugin_pane_closed"),
             "expected close to succeed: {close}"
         );
-        assert!(app.state.docked_pane.is_none());
+        assert!(app.state.docked_pane().is_none());
         assert!(app.state.plugin_panes.is_empty());
 
         for (_, runtime) in app.terminal_runtimes.drain() {

@@ -477,7 +477,7 @@ impl App {
     /// without a workspace/tab (the dock is a global singleton chrome
     /// region, not a tiled pane).
     pub(crate) fn dock_pane_info(&self) -> Option<crate::api::schema::PaneInfo> {
-        let dock = self.state.docked_pane.as_ref()?;
+        let dock = self.state.docked_pane()?;
         let terminal = self.state.terminals.get(&dock.terminal_id)?;
         let scroll = self
             .terminal_runtimes
@@ -490,7 +490,7 @@ impl App {
             });
         let presentation = terminal.effective_presentation();
         Some(crate::api::schema::PaneInfo {
-            pane_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+            pane_id: dock.public_id(),
             terminal_id: terminal.id.to_string(),
             workspace_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
             tab_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),

@@ -382,7 +382,7 @@ impl App {
                 leave_navigate_mode(&mut self.state);
             }
             NavigateAction::FocusDockRight => {
-                if self.state.docked_pane.is_some() {
+                if self.state.docked_pane().is_some() {
                     self.state.dock_focused = !self.state.dock_focused;
                     if self.state.dock_focused {
                         self.state.mode = Mode::Terminal;
@@ -1715,7 +1715,7 @@ pub(super) fn execute_navigate_action_in_context(
             leave_navigate_mode(state);
         }
         NavigateAction::FocusDockRight => {
-            if state.docked_pane.is_some() {
+            if state.docked_pane().is_some() {
                 state.dock_focused = !state.dock_focused;
                 if state.dock_focused {
                     state.mode = Mode::Terminal;

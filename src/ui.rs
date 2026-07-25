@@ -346,7 +346,7 @@ fn compute_view_internal(
 /// when collapsed in hidden mode, otherwise the configured width clamped to
 /// the configured bounds — mirroring the left sidebar's width resolution.
 fn docked_pane_width(app: &AppState) -> u16 {
-    if app.docked_pane.is_none() {
+    if app.docked_pane().is_none() {
         return 0;
     }
     if app.dock_right_collapsed {
@@ -674,13 +674,17 @@ mod tests {
             pane_id: crate::layout::PaneId::alloc(),
             terminal_id: crate::terminal::TerminalId::alloc(),
             side: crate::app::state::DockSide::Right,
+            plugin_id: "test-plugin".to_string(),
+            entrypoint: "pane".to_string(),
+            title: "Test".to_string(),
         }
     }
 
     #[test]
     fn compute_view_with_dock_tiles_sidebar_terminal_and_dock_without_overlap() {
         let mut app = crate::app::state::AppState::test_new();
-        app.docked_pane = Some(fake_docked_pane());
+        app.docked_panes = vec![fake_docked_pane()];
+        app.dock_active = 0;
         app.dock_right_width = 40;
         let area = Rect::new(0, 0, 160, 40);
 
@@ -704,7 +708,8 @@ mod tests {
     #[test]
     fn compute_view_dock_unoccupied_yields_zero_width_dock() {
         let mut app = crate::app::state::AppState::test_new();
-        app.docked_pane = None;
+        app.docked_panes.clear();
+        app.dock_active = 0;
         let area = Rect::new(0, 0, 160, 40);
 
         compute_view(&mut app, area);
@@ -715,7 +720,8 @@ mod tests {
     #[test]
     fn compute_view_dock_collapsed_hidden_yields_zero_width() {
         let mut app = crate::app::state::AppState::test_new();
-        app.docked_pane = Some(fake_docked_pane());
+        app.docked_panes = vec![fake_docked_pane()];
+        app.dock_active = 0;
         app.dock_right_collapsed = true;
         app.dock_right_collapsed_mode = crate::config::SidebarCollapsedModeConfig::Hidden;
         let area = Rect::new(0, 0, 160, 40);
@@ -728,7 +734,8 @@ mod tests {
     #[test]
     fn compute_view_dock_collapsed_compact_yields_collapsed_width() {
         let mut app = crate::app::state::AppState::test_new();
-        app.docked_pane = Some(fake_docked_pane());
+        app.docked_panes = vec![fake_docked_pane()];
+        app.dock_active = 0;
         app.dock_right_collapsed = true;
         app.dock_right_collapsed_mode = crate::config::SidebarCollapsedModeConfig::Compact;
         let area = Rect::new(0, 0, 160, 40);
@@ -741,7 +748,8 @@ mod tests {
     #[test]
     fn compute_view_dock_width_clamps_to_configured_bounds() {
         let mut app = crate::app::state::AppState::test_new();
-        app.docked_pane = Some(fake_docked_pane());
+        app.docked_panes = vec![fake_docked_pane()];
+        app.dock_active = 0;
         app.dock_right_min_width = 24;
         app.dock_right_max_width = 80;
         app.dock_right_width = 200;
@@ -759,7 +767,8 @@ mod tests {
     #[test]
     fn compute_view_mobile_yields_empty_dock_rect() {
         let mut app = crate::app::state::AppState::test_new();
-        app.docked_pane = Some(fake_docked_pane());
+        app.docked_panes = vec![fake_docked_pane()];
+        app.dock_active = 0;
         let area = Rect::new(0, 0, 40, 20); // below mobile_width_threshold
 
         compute_view(&mut app, area);

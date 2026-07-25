@@ -443,7 +443,7 @@ impl AppState {
                     return None;
                 }
 
-                if self.docked_pane.is_some()
+                if self.docked_pane().is_some()
                     && rect_contains(self.view.dock_right_rect, mouse.column, mouse.row)
                 {
                     self.dock_focused = true;

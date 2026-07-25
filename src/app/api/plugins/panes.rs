@@ -55,10 +55,15 @@ impl App {
                 Err((code, message)) => return encode_error(id, &code, message),
             };
         let cwd = Some(self.plugin_pane_cwd(plugin, params.cwd));
-        if let Err(err) = self.spawn_docked_argv_command(&pane.command, cwd, extra_env) {
+        let identity = crate::app::hoarder_dock::DockedPaneIdentity {
+            plugin_id: plugin.plugin_id.clone(),
+            entrypoint: pane.id.clone(),
+            title: pane.title.clone(),
+        };
+        if let Err(err) = self.spawn_docked_argv_command(&pane.command, cwd, extra_env, identity) {
             return encode_error(id, "plugin_pane_open_failed", err.to_string());
         }
-        let Some(dock) = self.state.docked_pane.clone() else {
+        let Some(dock) = self.state.docked_pane().cloned() else {
             return encode_error(id, "plugin_pane_open_failed", "docked pane disappeared");
         };
         if let Some(terminal) = self.state.terminals.get_mut(&dock.terminal_id) {
@@ -76,6 +81,18 @@ impl App {
             self.state.mode = crate::app::Mode::Terminal;
         }
         self.schedule_session_save();
+        self.encode_docked_pane_opened(id, &plugin.plugin_id.clone(), &pane.id)
+    }
+
+    /// Shared success response for docking a plugin pane, used both when a
+    /// pane is newly spawned and when an already-docked entrypoint is simply
+    /// brought to the front.
+    pub(super) fn encode_docked_pane_opened(
+        &self,
+        id: String,
+        plugin_id: &str,
+        entrypoint: &str,
+    ) -> String {
         let Some(pane_info) = self.dock_pane_info() else {
             return encode_error(id, "plugin_pane_open_failed", "docked pane disappeared");
         };
@@ -83,8 +100,8 @@ impl App {
             id,
             ResponseResult::PluginPaneOpened {
                 plugin_pane: PluginPaneInfo {
-                    plugin_id: plugin.plugin_id.clone(),
-                    entrypoint: pane.id,
+                    plugin_id: plugin_id.to_string(),
+                    entrypoint: entrypoint.to_string(),
                     pane: pane_info,
                 },
             },
@@ -296,6 +313,10 @@ impl App {
             crate::api::socket_path().display().to_string(),
         ));
         env.push(("HERDR_ENV".to_string(), "1".to_string()));
+        env.push((
+            crate::HOARDER_ENV_VAR.to_string(),
+            crate::HOARDER_ENV_VALUE.to_string(),
+        ));
         env.push(("HERDR_PLUGIN_ID".to_string(), plugin.plugin_id.clone()));
         env.push((
             "HERDR_PLUGIN_ENTRYPOINT_ID".to_string(),
@@ -390,6 +411,7 @@ fn plugin_pane_protected_env_key(key: &str) -> bool {
         key,
         crate::api::SOCKET_PATH_ENV_VAR
             | "HERDR_ENV"
+            | crate::HOARDER_ENV_VAR
             | "HERDR_PLUGIN_ID"
             | "HERDR_PLUGIN_ROOT"
             | "HERDR_PLUGIN_CONFIG_DIR"

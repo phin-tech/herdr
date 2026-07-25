@@ -71,13 +71,35 @@ pub(crate) enum DockSide {
 
 /// A plugin PTY pane docked to a screen edge — a persistent, resizable,
 /// collapsible chrome region that coexists with the workspace panes, as
-/// opposed to `PopupPaneState` which floats modally over them. Global
-/// singleton, like `popup_pane`.
+/// opposed to `PopupPaneState` which floats modally over them.
+///
+/// Several may be docked at once; only the active one renders, and the dock
+/// header switches between them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DockedPaneState {
     pub pane_id: PaneId,
     pub terminal_id: crate::terminal::TerminalId,
     pub side: DockSide,
+    /// Owning plugin and entrypoint. Together these form the pane's stable
+    /// public id (`dock_right:<plugin-id>.<entrypoint-id>`), so an id stays
+    /// valid when a neighbouring pane closes.
+    pub plugin_id: String,
+    pub entrypoint: String,
+    /// Manifest pane title, shown in the dock header.
+    pub title: String,
+}
+
+impl DockedPaneState {
+    /// Stable public id for this docked pane, distinct from the bare
+    /// `dock_right` alias which always refers to whichever is active.
+    pub fn public_id(&self) -> String {
+        format!(
+            "{}:{}.{}",
+            crate::app::App::DOCK_RIGHT_PUBLIC_PANE_ID,
+            self.plugin_id,
+            self.entrypoint
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1615,7 +1637,13 @@ pub struct AppState {
     pub(crate) popup_pane: Option<PopupPaneState>,
     /// Docked plugin pane region. Outside workspace layouts, like `popup_pane`,
     /// but non-modal and always visible (unless collapsed) rather than floating.
-    pub(crate) docked_pane: Option<DockedPaneState>,
+    /// Panes docked to the right edge, in the order they were opened. Only
+    /// `dock_active` renders; the rest stay live and resized so switching does
+    /// not reflow them.
+    pub(crate) docked_panes: Vec<DockedPaneState>,
+    /// Index into `docked_panes`. Meaningless when the vec is empty; the
+    /// invariants keep it in range otherwise.
+    pub(crate) dock_active: usize,
     /// Recent plugin action/event command executions.
     pub(crate) plugin_command_logs: Vec<crate::api::schema::PluginCommandLogInfo>,
     pub(crate) next_plugin_command_log_id: u64,
@@ -1712,6 +1740,31 @@ impl AppState {
         self.mouse_capture
             || self.popup_pane.is_some()
             || self.focused_pane_requests_mouse_capture_from(terminal_runtimes)
+    }
+
+    /// The docked pane currently shown in the dock, if any.
+    pub(crate) fn docked_pane(&self) -> Option<&DockedPaneState> {
+        self.docked_panes.get(self.dock_active)
+    }
+
+    /// Index of the pane owned by `plugin_id`/`entrypoint`, if docked.
+    pub(crate) fn docked_pane_index_for(&self, plugin_id: &str, entrypoint: &str) -> Option<usize> {
+        self.docked_panes
+            .iter()
+            .position(|dock| dock.plugin_id == plugin_id && dock.entrypoint == entrypoint)
+    }
+
+    /// Resolve a public dock id. The bare `dock_right` alias means "whichever
+    /// pane is active"; a qualified `dock_right:<plugin>.<entrypoint>` names
+    /// one specific pane so the id survives its neighbours closing.
+    pub(crate) fn docked_pane_index_for_public_id(&self, id: &str) -> Option<usize> {
+        let prefix = crate::app::App::DOCK_RIGHT_PUBLIC_PANE_ID;
+        if id == prefix {
+            return (!self.docked_panes.is_empty()).then_some(self.dock_active);
+        }
+        let rest = id.strip_prefix(prefix)?.strip_prefix(':')?;
+        let (plugin_id, entrypoint) = rest.rsplit_once('.')?;
+        self.docked_pane_index_for(plugin_id, entrypoint)
     }
 
     pub fn is_prefix_key(&self, key: crate::input::TerminalKey) -> bool {
@@ -1990,7 +2043,8 @@ impl AppState {
             pane_graphics_streams: std::collections::HashMap::new(),
             pane_graphics_revision: 0,
             popup_pane: None,
-            docked_pane: None,
+            docked_panes: Vec::new(),
+            dock_active: 0,
             plugin_command_logs: Vec::new(),
             next_plugin_command_log_id: 1,
             plugin_commands_in_flight: 0,
@@ -2234,7 +2288,7 @@ impl AppState {
                 popup.terminal_id
             );
         }
-        if let Some(dock) = &self.docked_pane {
+        for dock in &self.docked_panes {
             assert!(
                 self.terminals.contains_key(&dock.terminal_id),
                 "docked pane {:?} references missing terminal {}",
@@ -2246,11 +2300,28 @@ impl AppState {
                 "docked pane terminal {} must not be attached to a tiled pane",
                 dock.terminal_id
             );
-        } else {
+        }
+        if self.docked_panes.is_empty() {
             assert!(
                 !self.dock_focused,
                 "dock_focused must be false when no pane is docked"
             );
+        } else {
+            assert!(
+                self.dock_active < self.docked_panes.len(),
+                "dock_active {} out of range for {} docked panes",
+                self.dock_active,
+                self.docked_panes.len()
+            );
+            let mut seen = std::collections::HashSet::new();
+            for dock in &self.docked_panes {
+                assert!(
+                    seen.insert((dock.plugin_id.as_str(), dock.entrypoint.as_str())),
+                    "duplicate docked pane for {}.{}",
+                    dock.plugin_id,
+                    dock.entrypoint
+                );
+            }
         }
         // Registered plugin panes are normally tiled panes reachable through
         // a workspace, except the docked pane: it is a global singleton
@@ -2258,11 +2329,7 @@ impl AppState {
         // still registered here so `plugin.pane.close`/`plugin.pane.focus`
         // can address it.
         for &pane_id in self.plugin_panes.keys() {
-            if self
-                .docked_pane
-                .as_ref()
-                .is_some_and(|dock| dock.pane_id == pane_id)
-            {
+            if self.docked_panes.iter().any(|dock| dock.pane_id == pane_id) {
                 continue;
             }
             assert_live_pane(pane_id, "plugin pane record");
@@ -2430,18 +2497,21 @@ mod tests {
                 std::path::PathBuf::from("/dock"),
             ),
         );
-        state.docked_pane = Some(DockedPaneState {
+        state.docked_panes = vec![DockedPaneState {
             pane_id: PaneId::alloc(),
             terminal_id,
             side: DockSide::Right,
-        });
+            plugin_id: "test-plugin".to_string(),
+            entrypoint: "pane".to_string(),
+            title: "Test".to_string(),
+        }];
         state.dock_focused = true;
         // The dock's pane is registered for plugin.pane.close/focus
         // addressability, exactly like popup would be if it were
         // addressable — but it is a global singleton outside any workspace,
         // so it must be exempted from the "plugin panes are tiled" check.
         state.plugin_panes.insert(
-            state.docked_pane.as_ref().unwrap().pane_id,
+            state.docked_pane().unwrap().pane_id,
             PluginPaneRecord {
                 plugin_id: "example.dock".to_string(),
                 entrypoint: "board".to_string(),
