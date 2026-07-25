@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Added a `sidebar-right` plugin pane placement: a persistent, resizable, collapsible docked region on the right edge of the TUI that hosts one plugin PTY pane, addressable through `plugin.pane.focus`/`plugin.pane.close`.
+
 ### Changed
 - Relicensed Herdr from AGPL-3.0-or-later to Apache-2.0.
 

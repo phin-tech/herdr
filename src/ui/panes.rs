@@ -428,6 +428,116 @@ pub(super) fn render_popup_pane(
     rt.render(frame, inner, !pane_is_scrolled_back(rt));
 }
 
+/// Outer/inner rects for the right-docked plugin pane, or `None` when
+/// nothing is docked, the region is collapsed, or the area is degenerate.
+/// Modeled on `popup_pane_rects`, but the dock's outer rect is whatever the
+/// layout split already sized it to (`Constraint::Length(dock_w)`) rather
+/// than a floating geometry resolved against popup width/height params.
+pub(super) fn docked_pane_rects(app: &AppState, area: Rect) -> Option<(Rect, Rect)> {
+    app.docked_pane.as_ref()?;
+    if area.width == 0 || area.height == 0 || app.dock_right_collapsed {
+        return None;
+    }
+    let inner = Block::default().borders(Borders::ALL).inner(area);
+    Some((area, inner))
+}
+
+pub(super) fn resize_docked_pane(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    area: Rect,
+    cell_size: crate::kitty_graphics::HostCellSize,
+) {
+    let Some(dock) = app.docked_pane.as_ref() else {
+        return;
+    };
+    let Some((_outer, inner)) = docked_pane_rects(app, area) else {
+        return;
+    };
+    if app.direct_attach_resize_locks.contains(&dock.terminal_id) {
+        return;
+    }
+    if let Some(rt) = terminal_runtimes.get(&dock.terminal_id) {
+        rt.resize(
+            inner.height,
+            inner.width,
+            cell_size.width_px,
+            cell_size.height_px,
+        );
+    }
+}
+
+pub(super) fn render_docked_pane(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    frame: &mut Frame,
+    area: Rect,
+) {
+    let Some(dock) = app.docked_pane.as_ref() else {
+        return;
+    };
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    if app.dock_right_collapsed {
+        render_docked_pane_collapsed(app, frame, area);
+        return;
+    }
+    let Some((outer, inner)) = docked_pane_rects(app, area) else {
+        return;
+    };
+    let Some(rt) = terminal_runtimes.get(&dock.terminal_id) else {
+        return;
+    };
+    let title = app
+        .terminals
+        .get(&dock.terminal_id)
+        .and_then(|terminal| terminal.manual_label.as_deref())
+        .unwrap_or("dock");
+    // Unlike the popup (always-accent border, since it's modal), the dock
+    // is a non-modal chrome region: border style follows keyboard focus
+    // like tiled panes do.
+    let border_style = if app.dock_focused {
+        Style::default().fg(app.palette.accent)
+    } else {
+        Style::default()
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(border_style)
+        .title(pane_border_title(title, outer.width, app.dock_focused).unwrap_or_default())
+        .style(Style::default().bg(app.palette.panel_bg));
+    frame.render_widget(Clear, outer);
+    frame.render_widget(block, outer);
+    rt.render(frame, inner, !pane_is_scrolled_back(rt));
+}
+
+/// Compact collapsed strip for the dock, following `render_sidebar_collapsed`
+/// so the affordance language matches the left sidebar's collapse mode.
+fn render_docked_pane_collapsed(app: &AppState, frame: &mut Frame, area: Rect) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    frame.render_widget(Clear, area);
+    let p = &app.palette;
+    let sep_style = if app.dock_focused {
+        Style::default().fg(p.accent)
+    } else {
+        Style::default().fg(p.surface_dim)
+    };
+    let buf = frame.buffer_mut();
+    for y in area.y..area.y + area.height {
+        buf[(area.x, y)].set_symbol("│");
+        buf[(area.x, y)].set_style(sep_style);
+    }
+    if area.width > 1 {
+        let glyph_x = area.x + 1;
+        let glyph_y = area.y;
+        buf[(glyph_x, glyph_y)].set_symbol("▸");
+        buf[(glyph_x, glyph_y)].set_style(Style::default().fg(p.accent));
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 struct LineCell {
     up: bool,

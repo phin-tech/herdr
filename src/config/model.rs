@@ -416,6 +416,10 @@ pub struct KeysConfig {
     pub resize_mode: BindingConfig,
     /// Toggle sidebar collapse. Default: "prefix+b"
     pub toggle_sidebar: BindingConfig,
+    /// Collapse/expand the right-docked plugin pane region. Unset by default.
+    pub toggle_dock_right: BindingConfig,
+    /// Move keyboard focus into/out of the right-docked plugin pane region. Unset by default.
+    pub focus_dock_right: BindingConfig,
     /// Optional indexed shortcuts expanded over number keys 1-9.
     pub indexed: IndexedKeysConfig,
     /// Prefix-mode custom command bindings.
@@ -535,6 +539,10 @@ pub(crate) struct KeysConfigOverlay {
     #[serde(skip_serializing_if = "Option::is_none")]
     toggle_sidebar: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    toggle_dock_right: Option<BindingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    focus_dock_right: Option<BindingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     indexed: Option<IndexedKeysConfig>,
     #[serde(skip_serializing)]
     command: Option<Vec<CommandKeybindConfig>>,
@@ -610,6 +618,8 @@ impl<'de> Deserialize<'de> for KeysConfig {
         apply_field!(zoom);
         apply_field!(resize_mode);
         apply_field!(toggle_sidebar);
+        apply_field!(toggle_dock_right);
+        apply_field!(focus_dock_right);
         apply_field!(indexed);
         apply_field!(command);
 
@@ -708,6 +718,8 @@ impl KeysConfig {
         copy_effective_action_field!(zoom, keybinds.zoom);
         copy_effective_action_field!(resize_mode, keybinds.resize_mode);
         copy_effective_action_field!(toggle_sidebar, keybinds.toggle_sidebar);
+        copy_effective_action_field!(toggle_dock_right, keybinds.toggle_dock_right);
+        copy_effective_action_field!(focus_dock_right, keybinds.focus_dock_right);
         copy_user_field!(indexed);
 
         profile
@@ -784,6 +796,14 @@ pub struct UiConfig {
     pub sidebar_start_collapsed: bool,
     /// Collapsed sidebar presentation. Default: compact.
     pub sidebar_collapsed_mode: SidebarCollapsedModeConfig,
+    /// Width (columns) of the right-docked plugin pane region when expanded. Default: 40.
+    pub dock_right_width: u16,
+    /// Minimum right dock width (columns) when expanded. Default: 24.
+    pub dock_right_min_width: u16,
+    /// Maximum right dock width (columns) when expanded. Default: 80.
+    pub dock_right_max_width: u16,
+    /// Collapsed right dock presentation. Default: compact.
+    pub dock_right_collapsed_mode: SidebarCollapsedModeConfig,
     /// Terminal width at or below which Herdr uses the mobile single-column layout. Default: 64.
     pub mobile_width_threshold: u16,
     /// Capture mouse input for Herdr's mouse UI. Default: true.
@@ -973,6 +993,8 @@ impl Default for KeysConfig {
             zoom: BindingConfig::one("prefix+z"),
             resize_mode: BindingConfig::one("prefix+r"),
             toggle_sidebar: BindingConfig::one("prefix+b"),
+            toggle_dock_right: BindingConfig::empty(),
+            focus_dock_right: BindingConfig::empty(),
             indexed: IndexedKeysConfig::default(),
             command: Vec::new(),
             user_fields: BTreeSet::new(),
@@ -996,6 +1018,10 @@ impl Default for UiConfig {
             sidebar_max_width: 36,
             sidebar_start_collapsed: false,
             sidebar_collapsed_mode: SidebarCollapsedModeConfig::Compact,
+            dock_right_width: 40,
+            dock_right_min_width: 24,
+            dock_right_max_width: 80,
+            dock_right_collapsed_mode: SidebarCollapsedModeConfig::Compact,
             mobile_width_threshold: DEFAULT_MOBILE_WIDTH_THRESHOLD,
             mouse_capture: true,
             copy_on_select: true,

@@ -435,6 +435,24 @@ impl AppState {
                     return None;
                 }
 
+                if self.on_dock_right_divider(mouse.column, mouse.row) {
+                    self.drag = Some(DragState {
+                        target: DragTarget::DockRightDivider,
+                    });
+                    self.set_manual_dock_right_width(mouse.column);
+                    return None;
+                }
+
+                if self.docked_pane.is_some()
+                    && rect_contains(self.view.dock_right_rect, mouse.column, mouse.row)
+                {
+                    self.dock_focused = true;
+                    if self.mode != Mode::Terminal {
+                        self.mode = Mode::Terminal;
+                    }
+                    return None;
+                }
+
                 if !in_sidebar {
                     if let Some(border) = self.find_border_at(mouse.column, mouse.row) {
                         let grab_offset = match border.direction {
@@ -786,6 +804,9 @@ impl AppState {
                         }
                         DragTarget::SidebarSectionDivider => {
                             self.set_sidebar_section_split(mouse.row);
+                        }
+                        DragTarget::DockRightDivider => {
+                            self.set_manual_dock_right_width(mouse.column);
                         }
                         DragTarget::ReleaseNotesScrollbar { .. }
                         | DragTarget::ProductAnnouncementScrollbar { .. }
@@ -1186,10 +1207,15 @@ impl AppState {
     pub(super) fn screen_rect(&self) -> Rect {
         let sidebar = self.view.sidebar_rect;
         let terminal = self.view.terminal_area;
-        let x = sidebar.x.min(terminal.x);
-        let y = sidebar.y.min(terminal.y);
-        let right = (sidebar.x + sidebar.width).max(terminal.x + terminal.width);
-        let bottom = (sidebar.y + sidebar.height).max(terminal.y + terminal.height);
+        let dock = self.view.dock_right_rect;
+        let x = sidebar.x.min(terminal.x).min(dock.x);
+        let y = sidebar.y.min(terminal.y).min(dock.y);
+        let right = (sidebar.x + sidebar.width)
+            .max(terminal.x + terminal.width)
+            .max(dock.x + dock.width);
+        let bottom = (sidebar.y + sidebar.height)
+            .max(terminal.y + terminal.height)
+            .max(dock.y + dock.height);
         Rect::new(x, y, right.saturating_sub(x), bottom.saturating_sub(y))
     }
 

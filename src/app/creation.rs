@@ -467,6 +467,51 @@ impl App {
         })
     }
 
+    /// Public pane id for the docked (`sidebar-right`) plugin pane, if one is
+    /// open. Unlike tiled panes, the dock is a global singleton outside any
+    /// workspace, so it gets a fixed synthetic id instead of a `w_/p_`
+    /// encoded one.
+    pub(crate) const DOCK_RIGHT_PUBLIC_PANE_ID: &'static str = "dock_right";
+
+    /// Pane info for the docked plugin pane, modeled on `pane_info` but
+    /// without a workspace/tab (the dock is a global singleton chrome
+    /// region, not a tiled pane).
+    pub(crate) fn dock_pane_info(&self) -> Option<crate::api::schema::PaneInfo> {
+        let dock = self.state.docked_pane.as_ref()?;
+        let terminal = self.state.terminals.get(&dock.terminal_id)?;
+        let scroll = self
+            .terminal_runtimes
+            .get(&dock.terminal_id)
+            .and_then(|runtime| runtime.scroll_metrics())
+            .map(|metrics| crate::api::schema::PaneScrollInfo {
+                offset_from_bottom: metrics.offset_from_bottom as u64,
+                max_offset_from_bottom: metrics.max_offset_from_bottom as u64,
+                viewport_rows: metrics.viewport_rows as u64,
+            });
+        let presentation = terminal.effective_presentation();
+        Some(crate::api::schema::PaneInfo {
+            pane_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+            terminal_id: terminal.id.to_string(),
+            workspace_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+            tab_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+            focused: self.state.dock_focused,
+            cwd: Some(terminal.cwd.display().to_string()),
+            foreground_cwd: None,
+            label: terminal.manual_label.clone(),
+            agent: terminal.effective_agent_label().map(str::to_string),
+            title: presentation.title,
+            terminal_title: terminal.terminal_title.clone(),
+            terminal_title_stripped: terminal.terminal_title_stripped(),
+            display_agent: presentation.display_agent,
+            agent_status: pane_agent_status(terminal.state, false),
+            state_labels: presentation.state_labels,
+            tokens: terminal.metadata_tokens.values(),
+            agent_session: terminal_agent_session_info(terminal),
+            scroll,
+            revision: terminal.revision,
+        })
+    }
+
     pub(super) fn lookup_runtime(
         &self,
         ws_idx: usize,

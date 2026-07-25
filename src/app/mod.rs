@@ -12,6 +12,7 @@ mod api;
 mod api_helpers;
 mod config_io;
 mod creation;
+mod dock;
 mod git_refresh;
 mod ids;
 mod input;
@@ -122,6 +123,7 @@ pub struct App {
     pub(crate) pending_api_worktree_remove_paths: HashMap<std::path::PathBuf, u64>,
     pub(crate) next_api_worktree_operation_id: u64,
     pub(crate) last_sidebar_divider_click: Option<Instant>,
+    pub(crate) last_dock_right_divider_click: Option<Instant>,
     pub(crate) last_pane_click: Option<PaneClickState>,
     pub(crate) pending_url_click_sources: HashSet<InputSourceId>,
     pub(crate) next_resize_poll: Instant,
@@ -529,6 +531,21 @@ impl App {
         let theme_runtime = theme_runtime_config(config, true);
         let (theme_palette, theme_name) = resolve_effective_theme(&theme_runtime, None);
 
+        // Right dock geometry/collapse state persists across restarts (like the
+        // sidebar), but the docked plugin process itself does not — popups
+        // aren't restored either, and the dock follows suit.
+        let (dock_right_width, dock_right_collapsed) = if no_session {
+            (config.ui.dock_right_width, false)
+        } else {
+            match crate::persist::load() {
+                Some(snap) => (
+                    snap.dock_right_width.unwrap_or(config.ui.dock_right_width),
+                    snap.dock_right_collapsed.unwrap_or(false),
+                ),
+                None => (config.ui.dock_right_width, false),
+            }
+        };
+
         let mut state = AppState {
             terminals: std::collections::HashMap::new(),
             direct_attach_resize_locks: std::collections::HashSet::new(),
@@ -600,6 +617,8 @@ impl App {
                 toast_hit_area: Rect::default(),
                 pane_infos: Vec::new(),
                 split_borders: Vec::new(),
+                dock_right_rect: Rect::default(),
+                dock_right_divider_rect: Rect::default(),
             },
             drag: None,
             workspace_press: None,
@@ -628,6 +647,13 @@ impl App {
             sidebar_collapsed: config.ui.sidebar_start_collapsed,
             sidebar_collapsed_mode: config.ui.sidebar_collapsed_mode,
             sidebar_section_split,
+            default_dock_right_width: config.ui.dock_right_width,
+            dock_right_width,
+            dock_right_min_width: config.ui.dock_right_min_width,
+            dock_right_max_width: config.ui.dock_right_max_width,
+            dock_right_collapsed,
+            dock_right_collapsed_mode: config.ui.dock_right_collapsed_mode,
+            dock_focused: false,
             agent_panel_sort,
             agent_view_override: None,
             sidebar_agents: config.ui.sidebar.agents.clone(),
@@ -686,6 +712,7 @@ impl App {
             pane_graphics_streams: std::collections::HashMap::new(),
             pane_graphics_revision: 0,
             popup_pane: None,
+            docked_pane: None,
             plugin_command_logs: Vec::new(),
             next_plugin_command_log_id: 1,
             plugin_commands_in_flight: 0,
@@ -750,6 +777,7 @@ impl App {
             pending_api_worktree_remove_paths: HashMap::new(),
             next_api_worktree_operation_id: 1,
             last_sidebar_divider_click: None,
+            last_dock_right_divider_click: None,
             last_pane_click: None,
             pending_url_click_sources: HashSet::new(),
             next_resize_poll: Instant::now() + RESIZE_POLL_INTERVAL,
@@ -844,6 +872,12 @@ impl App {
         }
         if let Some(split) = snapshot.sidebar_section_split {
             app.state.sidebar_section_split = split;
+        }
+        if let Some(width) = snapshot.dock_right_width {
+            app.state.dock_right_width = width;
+        }
+        if let Some(collapsed) = snapshot.dock_right_collapsed {
+            app.state.dock_right_collapsed = collapsed;
         }
         app.state.collapsed_space_keys = snapshot.collapsed_space_keys.clone();
         app.state.mode = if app.state.active.is_some() {
@@ -1626,7 +1660,9 @@ impl App {
                     let pressed_key_id = pressed_key_identity(source_id, &key);
                     match key.kind {
                         crossterm::event::KeyEventKind::Press => {
-                            if self.state.popup_pane.is_some() || self.state.mode == Mode::Terminal
+                            if self.state.popup_pane.is_some()
+                                || self.state.dock_focused
+                                || self.state.mode == Mode::Terminal
                             {
                                 self.suppressed_repeat_keys.remove(&pressed_key_id);
                                 if let Some(target) =
@@ -1657,6 +1693,7 @@ impl App {
                                     self.pressed_terminal_keys.remove(&pressed_key_id);
                                 }
                             } else if (self.state.popup_pane.is_some()
+                                || self.state.dock_focused
                                 || self.state.mode == Mode::Terminal)
                                 && !self.suppressed_repeat_keys.contains(&pressed_key_id)
                             {
@@ -1675,7 +1712,10 @@ impl App {
                     }
                 }
                 crate::raw_input::RawInputEvent::Mouse(mouse) => {
-                    if self.state.popup_pane.is_some() || self.state.mouse_capture {
+                    if self.state.popup_pane.is_some()
+                        || self.state.dock_focused
+                        || self.state.mouse_capture
+                    {
                         self.handle_mouse_event_headless(source_id, mouse);
                     } else {
                         self.state
@@ -1683,7 +1723,9 @@ impl App {
                     }
                 }
                 crate::raw_input::RawInputEvent::Paste(text) => {
-                    if self.try_route_paste_to_popup(&text) {
+                    if self.try_route_paste_to_popup(&text)
+                        || self.try_route_paste_to_docked_pane(&text)
+                    {
                     } else if self.state.mode != Mode::Terminal {
                         self.paste_into_active_text_input(&text);
                     } else {

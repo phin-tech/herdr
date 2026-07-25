@@ -183,6 +183,15 @@ impl App {
                 self.close_popup_pane();
                 return;
             }
+            if self
+                .state
+                .docked_pane
+                .as_ref()
+                .is_some_and(|dock| dock.pane_id == *pane_id)
+            {
+                self.close_docked_pane();
+                return;
+            }
             let previous_toast = self.state.toast.clone();
             if let Some(update) = self.state.publish_pane_process_exit_if_agent(*pane_id) {
                 self.sync_full_lifecycle_authority_detection_pauses();

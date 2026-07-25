@@ -23,6 +23,15 @@ enum PreparedPopupInput {
     },
 }
 
+enum PreparedDockInput {
+    NotFocused,
+    Consumed,
+    Bytes {
+        target: TerminalInputTarget,
+        bytes: Bytes,
+    },
+}
+
 fn is_modifier_only_key(code: &KeyCode) -> bool {
     matches!(code, KeyCode::Modifier(_))
 }
@@ -47,6 +56,18 @@ impl App {
             PreparedPopupInput::Bytes { target, bytes } => {
                 let Some(runtime) = self.popup_runtime() else {
                     self.close_popup_pane();
+                    return None;
+                };
+                return runtime.try_send_bytes(bytes).is_ok().then_some(target);
+            }
+        }
+
+        match self.prepare_dock_key_forward(key) {
+            PreparedDockInput::NotFocused => {}
+            PreparedDockInput::Consumed => return None,
+            PreparedDockInput::Bytes { target, bytes } => {
+                let Some(runtime) = self.docked_runtime() else {
+                    self.close_docked_pane();
                     return None;
                 };
                 return runtime.try_send_bytes(bytes).is_ok().then_some(target);
@@ -263,9 +284,56 @@ impl App {
         }
     }
 
+    fn prepare_dock_key_forward(&mut self, key: TerminalKey) -> PreparedDockInput {
+        if !self.state.dock_focused || self.state.docked_pane.is_none() {
+            return PreparedDockInput::NotFocused;
+        }
+        let Some(terminal_id) = self
+            .state
+            .docked_pane
+            .as_ref()
+            .map(|dock| dock.terminal_id.clone())
+        else {
+            return PreparedDockInput::NotFocused;
+        };
+        let Some(rt) = self.terminal_runtimes.get(&terminal_id) else {
+            self.close_docked_pane();
+            return PreparedDockInput::Consumed;
+        };
+        rt.scroll_reset();
+        let bytes = rt.encode_terminal_key(key);
+        if bytes.is_empty() {
+            PreparedDockInput::Consumed
+        } else {
+            PreparedDockInput::Bytes {
+                target: TerminalInputTarget { terminal_id },
+                bytes: Bytes::from(bytes),
+            }
+        }
+    }
+
+    pub(super) async fn handle_dock_key(
+        &mut self,
+        key: TerminalKey,
+    ) -> Option<TerminalInputTarget> {
+        match self.prepare_dock_key_forward(key) {
+            PreparedDockInput::NotFocused => None,
+            PreparedDockInput::Consumed => None,
+            PreparedDockInput::Bytes { target, bytes } => {
+                let Some(runtime) = self.docked_runtime() else {
+                    self.close_docked_pane();
+                    return None;
+                };
+                runtime.send_bytes(bytes).await.is_ok().then_some(target)
+            }
+        }
+    }
+
     pub(crate) fn host_keyboard_report_all_requested(&self) -> bool {
         let runtime = if self.state.popup_pane.is_some() {
             self.popup_runtime()
+        } else if self.state.dock_focused {
+            self.docked_runtime()
         } else if self.state.mode == Mode::Terminal {
             self.state.active.and_then(|ws_idx| {
                 self.state
@@ -1434,6 +1502,8 @@ mod tests {
             app.state.sidebar_width,
             app.state.sidebar_section_split,
             app.state.collapsed_space_keys.clone(),
+            app.state.dock_right_width,
+            app.state.dock_right_collapsed,
         );
         assert_eq!(snapshot.workspaces[0].tabs[0].panes.len(), 1);
         assert!(matches!(
@@ -1519,6 +1589,54 @@ mod tests {
                 .map(|metrics| metrics.offset_from_bottom),
             Some(0)
         );
+    }
+
+    #[tokio::test]
+    async fn dock_focused_keys_go_to_docked_runtime_not_tiled_pane() {
+        let mut app = app_for_mouse_test();
+        let (dock_runtime, mut dock_rx) =
+            crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
+                40, 2, 1024, b"", 4,
+            );
+        app.install_test_docked_runtime(dock_runtime);
+        app.state.dock_focused = true;
+
+        app.handle_terminal_key_headless(TerminalKey::new(
+            KeyCode::Char('x'),
+            KeyModifiers::empty(),
+        ));
+
+        assert_eq!(dock_rx.try_recv().unwrap().as_ref(), b"x");
+        assert!(app.state.docked_pane.is_some());
+    }
+
+    #[tokio::test]
+    async fn clicking_tiled_pane_clears_dock_focused() {
+        let mut app = app_for_mouse_test();
+        let (dock_runtime, _dock_rx) =
+            crate::terminal::TerminalRuntime::test_with_channel_and_scrollback_bytes(
+                40, 2, 1024, b"", 4,
+            );
+        app.install_test_docked_runtime(dock_runtime);
+        app.state.dock_focused = true;
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("dock-click")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = Mode::Terminal;
+        crate::ui::compute_view(&mut app.state, Rect::new(0, 0, 106, 20));
+        let pane_rect = app.state.view.pane_infos[0].rect;
+
+        app.handle_mouse_from_input_source(
+            crate::app::LOCAL_INPUT_SOURCE,
+            mouse(
+                MouseEventKind::Down(MouseButton::Left),
+                pane_rect.x,
+                pane_rect.y,
+            ),
+        );
+
+        assert!(!app.state.dock_focused);
     }
 
     #[tokio::test]

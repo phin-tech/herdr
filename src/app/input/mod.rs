@@ -38,6 +38,7 @@ fn modified_url_click_modifier_matches_terminal_mouse_reporting() {
 
 mod clipboard;
 mod copy_mode;
+mod dock;
 mod modal;
 mod mouse;
 mod navigate;
@@ -79,6 +80,9 @@ impl App {
     ) -> Option<super::TerminalInputTarget> {
         if self.state.popup_pane.is_some() {
             return self.handle_terminal_key(key).await;
+        }
+        if self.state.dock_focused {
+            return self.handle_dock_key(key).await;
         }
         let key_event = key.as_key_event();
         if modal_paste_target_active(&self.state) && is_modal_paste_shortcut(&key_event) {
@@ -127,6 +131,14 @@ impl App {
                 let _ = runtime.send_paste(text).await;
             } else {
                 self.close_popup_pane();
+            }
+            return;
+        }
+        if self.state.dock_focused {
+            if let Some(runtime) = self.docked_runtime() {
+                let _ = runtime.send_paste(text).await;
+            } else {
+                self.close_docked_pane();
             }
             return;
         }
@@ -318,6 +330,23 @@ impl App {
             }
         }
 
+        if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left))
+            && self.state.on_dock_right_divider(mouse.column, mouse.row)
+        {
+            let now = std::time::Instant::now();
+            let is_double_click = self
+                .last_dock_right_divider_click
+                .is_some_and(|last| now.duration_since(last) <= super::SIDEBAR_DOUBLE_CLICK_WINDOW);
+            self.last_dock_right_divider_click = Some(now);
+
+            if is_double_click {
+                self.state.dock_right_width = self.state.default_dock_right_width;
+                self.state.mark_session_dirty();
+                self.state.drag = None;
+                return;
+            }
+        }
+
         if self.handle_modified_url_click(source_id, mouse) {
             return;
         }
@@ -490,6 +519,10 @@ impl App {
         let Some(ws_idx) = self.state.active else {
             return;
         };
+
+        // A click that resolves to a tiled pane moves keyboard focus back to
+        // the workspace panes, out of the (non-modal) docked pane.
+        self.state.dock_focused = false;
 
         // Focus through the runtime API before an application can consume its press.
         self.focus_pane_internal_via_api(ws_idx, pane_id);
@@ -794,6 +827,8 @@ fn capture_snapshot(state: &AppState) -> crate::persist::SessionSnapshot {
         state.sidebar_width,
         state.sidebar_section_split,
         state.collapsed_space_keys.clone(),
+        state.dock_right_width,
+        state.dock_right_collapsed,
     )
 }
 

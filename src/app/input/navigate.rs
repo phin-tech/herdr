@@ -377,6 +377,19 @@ impl App {
                 self.state.sidebar_collapsed = !self.state.sidebar_collapsed;
                 leave_navigate_mode(&mut self.state);
             }
+            NavigateAction::ToggleDockRight => {
+                self.state.dock_right_collapsed = !self.state.dock_right_collapsed;
+                leave_navigate_mode(&mut self.state);
+            }
+            NavigateAction::FocusDockRight => {
+                if self.state.docked_pane.is_some() {
+                    self.state.dock_focused = !self.state.dock_focused;
+                    if self.state.dock_focused {
+                        self.state.mode = Mode::Terminal;
+                    }
+                }
+                leave_navigate_mode(&mut self.state);
+            }
             NavigateAction::CyclePaneNext => {
                 self.cycle_pane_via_api(false);
                 leave_navigate_mode(&mut self.state);
@@ -1320,6 +1333,8 @@ pub(crate) enum NavigateAction {
     Zoom,
     EnterResizeMode,
     ToggleSidebar,
+    ToggleDockRight,
+    FocusDockRight,
     CyclePaneNext,
     CyclePanePrevious,
     LastPane,
@@ -1456,6 +1471,8 @@ fn non_indexed_action_for_key(
         (&kb.zoom, NavigateAction::Zoom),
         (&kb.resize_mode, NavigateAction::EnterResizeMode),
         (&kb.toggle_sidebar, NavigateAction::ToggleSidebar),
+        (&kb.toggle_dock_right, NavigateAction::ToggleDockRight),
+        (&kb.focus_dock_right, NavigateAction::FocusDockRight),
         (&kb.reload_config, NavigateAction::ReloadConfig),
         (
             &kb.open_notification_target,
@@ -1688,6 +1705,19 @@ pub(super) fn execute_navigate_action_in_context(
         NavigateAction::EnterResizeMode => state.mode = Mode::Resize,
         NavigateAction::ToggleSidebar => {
             state.sidebar_collapsed = !state.sidebar_collapsed;
+            leave_navigate_mode(state);
+        }
+        NavigateAction::ToggleDockRight => {
+            state.dock_right_collapsed = !state.dock_right_collapsed;
+            leave_navigate_mode(state);
+        }
+        NavigateAction::FocusDockRight => {
+            if state.docked_pane.is_some() {
+                state.dock_focused = !state.dock_focused;
+                if state.dock_focused {
+                    state.mode = Mode::Terminal;
+                }
+            }
             leave_navigate_mode(state);
         }
         NavigateAction::CyclePaneNext => {

@@ -449,6 +449,11 @@ pub enum PluginPanePlacement {
     Split,
     Tab,
     Zoomed,
+    /// Docked to the right edge of the TUI as a persistent, resizable,
+    /// collapsible chrome region. Global singleton — only one pane may be
+    /// docked at a time.
+    #[serde(rename = "sidebar-right", alias = "sidebar_right")]
+    SidebarRight,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -466,4 +471,23 @@ pub struct PluginPaneInfo {
     pub plugin_id: String,
     pub entrypoint: String,
     pub pane: PaneInfo,
+}
+
+#[cfg(test)]
+mod placement_tests {
+    use super::*;
+
+    #[test]
+    fn sidebar_right_placement_serializes_hyphenated() {
+        let json = serde_json::to_string(&PluginPanePlacement::SidebarRight).unwrap();
+        assert_eq!(json, "\"sidebar-right\"");
+    }
+
+    #[test]
+    fn sidebar_right_placement_deserializes_hyphen_and_underscore() {
+        let hyphenated: PluginPanePlacement = serde_json::from_str("\"sidebar-right\"").unwrap();
+        let underscored: PluginPanePlacement = serde_json::from_str("\"sidebar_right\"").unwrap();
+        assert_eq!(hyphenated, PluginPanePlacement::SidebarRight);
+        assert_eq!(underscored, PluginPanePlacement::SidebarRight);
+    }
 }

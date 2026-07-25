@@ -112,6 +112,7 @@ impl App {
                 match key.kind {
                     crossterm::event::KeyEventKind::Press => {
                         if self.state.popup_pane.is_some()
+                            || self.state.dock_focused
                             || self.state.mode == crate::app::Mode::Terminal
                         {
                             self.suppressed_repeat_keys.remove(&pressed_key_id);
@@ -142,6 +143,7 @@ impl App {
                             }
                             true
                         } else if (self.state.popup_pane.is_some()
+                            || self.state.dock_focused
                             || self.state.mode == crate::app::Mode::Terminal)
                             && !self.suppressed_repeat_keys.contains(&pressed_key_id)
                         {
@@ -167,7 +169,10 @@ impl App {
                 true
             }
             crate::raw_input::RawInputEvent::Mouse(mouse) => {
-                if self.state.popup_pane.is_some() || self.state.mouse_capture {
+                if self.state.popup_pane.is_some()
+                    || self.state.dock_focused
+                    || self.state.mouse_capture
+                {
                     self.handle_mouse(mouse);
                 } else {
                     self.state

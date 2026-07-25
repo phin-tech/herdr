@@ -61,6 +61,25 @@ pub(crate) struct PopupPaneState {
     pub height: Option<crate::popup_size::PopupSize>,
 }
 
+/// Which edge of the terminal a docked chrome region is anchored to. Only
+/// `Right` is implemented today; the enum exists so a future bottom/left
+/// dock is additive rather than a rename.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DockSide {
+    Right,
+}
+
+/// A plugin PTY pane docked to a screen edge — a persistent, resizable,
+/// collapsible chrome region that coexists with the workspace panes, as
+/// opposed to `PopupPaneState` which floats modally over them. Global
+/// singleton, like `popup_pane`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DockedPaneState {
+    pub pane_id: PaneId,
+    pub terminal_id: crate::terminal::TerminalId,
+    pub side: DockSide,
+}
+
 // ---------------------------------------------------------------------------
 // Selection autoscroll types
 // ---------------------------------------------------------------------------
@@ -787,6 +806,11 @@ pub struct ViewState {
     pub toast_hit_area: Rect,
     pub pane_infos: Vec<PaneInfo>,
     pub split_borders: Vec<SplitBorder>,
+    /// Right-docked plugin pane region. Empty (zero-width) when unoccupied,
+    /// collapsed to `Hidden`, or on the mobile layout.
+    pub dock_right_rect: Rect,
+    /// Drag handle between the tiled panes and the right dock.
+    pub dock_right_divider_rect: Rect,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1174,6 +1198,7 @@ pub(crate) enum DragTarget {
     },
     SidebarDivider,
     SidebarSectionDivider,
+    DockRightDivider,
 }
 
 /// Active mouse drag on a split border or sidebar divider.
@@ -1494,6 +1519,19 @@ pub struct AppState {
     pub sidebar_collapsed_mode: crate::config::SidebarCollapsedModeConfig,
     /// Ratio of sidebar height allocated to the workspaces section.
     pub sidebar_section_split: f32,
+    /// Configured default width (columns) of the right dock, used to reset
+    /// on double-click, mirroring `default_sidebar_width`.
+    pub default_dock_right_width: u16,
+    /// Width (columns) of the right-docked plugin pane region when expanded.
+    pub dock_right_width: u16,
+    pub dock_right_min_width: u16,
+    pub dock_right_max_width: u16,
+    pub dock_right_collapsed: bool,
+    pub dock_right_collapsed_mode: crate::config::SidebarCollapsedModeConfig,
+    /// True when keyboard focus is inside the right-docked pane rather than
+    /// the tiled workspace panes. The dock is not modal, so this is
+    /// independent of `mode`.
+    pub dock_focused: bool,
     pub agent_panel_sort: AgentPanelSort,
     /// Transient session-wide projection override for the built-in Agents view.
     pub agent_view_override: Option<crate::api::schema::AgentViewSetParams>,
@@ -1575,6 +1613,9 @@ pub struct AppState {
     pub(crate) pane_graphics_revision: u64,
     /// Session-modal terminal popup. This is intentionally outside workspace layouts.
     pub(crate) popup_pane: Option<PopupPaneState>,
+    /// Docked plugin pane region. Outside workspace layouts, like `popup_pane`,
+    /// but non-modal and always visible (unless collapsed) rather than floating.
+    pub(crate) docked_pane: Option<DockedPaneState>,
     /// Recent plugin action/event command executions.
     pub(crate) plugin_command_logs: Vec<crate::api::schema::PluginCommandLogInfo>,
     pub(crate) next_plugin_command_log_id: u64,
@@ -1845,6 +1886,8 @@ impl AppState {
                 toast_hit_area: Rect::default(),
                 pane_infos: Vec::new(),
                 split_borders: Vec::new(),
+                dock_right_rect: Rect::default(),
+                dock_right_divider_rect: Rect::default(),
             },
             drag: None,
             workspace_press: None,
@@ -1873,6 +1916,13 @@ impl AppState {
             sidebar_collapsed: false,
             sidebar_collapsed_mode: crate::config::SidebarCollapsedModeConfig::Compact,
             sidebar_section_split: 0.5,
+            default_dock_right_width: 40,
+            dock_right_width: 40,
+            dock_right_min_width: 24,
+            dock_right_max_width: 80,
+            dock_right_collapsed: false,
+            dock_right_collapsed_mode: crate::config::SidebarCollapsedModeConfig::Compact,
+            dock_focused: false,
             agent_panel_sort: AgentPanelSort::Spaces,
             agent_view_override: None,
             sidebar_agents: crate::config::AgentsSidebarConfig::default(),
@@ -1940,6 +1990,7 @@ impl AppState {
             pane_graphics_streams: std::collections::HashMap::new(),
             pane_graphics_revision: 0,
             popup_pane: None,
+            docked_pane: None,
             plugin_command_logs: Vec::new(),
             next_plugin_command_log_id: 1,
             plugin_commands_in_flight: 0,
@@ -2183,7 +2234,37 @@ impl AppState {
                 popup.terminal_id
             );
         }
+        if let Some(dock) = &self.docked_pane {
+            assert!(
+                self.terminals.contains_key(&dock.terminal_id),
+                "docked pane {:?} references missing terminal {}",
+                dock.pane_id,
+                dock.terminal_id
+            );
+            assert!(
+                !attached_terminal_ids.contains(&dock.terminal_id),
+                "docked pane terminal {} must not be attached to a tiled pane",
+                dock.terminal_id
+            );
+        } else {
+            assert!(
+                !self.dock_focused,
+                "dock_focused must be false when no pane is docked"
+            );
+        }
+        // Registered plugin panes are normally tiled panes reachable through
+        // a workspace, except the docked pane: it is a global singleton
+        // outside any workspace (like the popup), but unlike the popup it is
+        // still registered here so `plugin.pane.close`/`plugin.pane.focus`
+        // can address it.
         for &pane_id in self.plugin_panes.keys() {
+            if self
+                .docked_pane
+                .as_ref()
+                .is_some_and(|dock| dock.pane_id == pane_id)
+            {
+                continue;
+            }
             assert_live_pane(pane_id, "plugin pane record");
         }
         if let Some(copy_mode) = &self.copy_mode {
@@ -2334,6 +2415,38 @@ mod tests {
         let new_pane = ws.test_split(ratatui::layout::Direction::Horizontal);
         assert!(ws.public_pane_number(new_pane).is_some());
         state.ensure_test_terminals();
+
+        state.assert_invariants_for_test();
+    }
+
+    #[test]
+    fn adversarial_identity_state_satisfies_invariants_with_dock_occupied() {
+        let mut state = AppState::test_with_adversarial_identity_state();
+        let terminal_id = crate::terminal::TerminalId::alloc();
+        state.terminals.insert(
+            terminal_id.clone(),
+            crate::terminal::TerminalState::new(
+                terminal_id.clone(),
+                std::path::PathBuf::from("/dock"),
+            ),
+        );
+        state.docked_pane = Some(DockedPaneState {
+            pane_id: PaneId::alloc(),
+            terminal_id,
+            side: DockSide::Right,
+        });
+        state.dock_focused = true;
+        // The dock's pane is registered for plugin.pane.close/focus
+        // addressability, exactly like popup would be if it were
+        // addressable — but it is a global singleton outside any workspace,
+        // so it must be exempted from the "plugin panes are tiled" check.
+        state.plugin_panes.insert(
+            state.docked_pane.as_ref().unwrap().pane_id,
+            PluginPaneRecord {
+                plugin_id: "example.dock".to_string(),
+                entrypoint: "board".to_string(),
+            },
+        );
 
         state.assert_invariants_for_test();
     }

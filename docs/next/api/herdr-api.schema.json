@@ -3446,14 +3446,23 @@
           "type": "object"
         },
         "PluginPanePlacement": {
-          "enum": [
-            "overlay",
-            "popup",
-            "split",
-            "tab",
-            "zoomed"
-          ],
-          "type": "string"
+          "oneOf": [
+            {
+              "enum": [
+                "overlay",
+                "popup",
+                "split",
+                "tab",
+                "zoomed"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "sidebar-right",
+              "description": "Docked to the right edge of the TUI as a persistent, resizable,\ncollapsible chrome region. Global singleton — only one pane may be\ndocked at a time.",
+              "type": "string"
+            }
+          ]
         },
         "PluginSetEnabledParams": {
           "properties": {
@@ -8335,14 +8344,23 @@
           "type": "object"
         },
         "PluginPanePlacement": {
-          "enum": [
-            "overlay",
-            "popup",
-            "split",
-            "tab",
-            "zoomed"
-          ],
-          "type": "string"
+          "oneOf": [
+            {
+              "enum": [
+                "overlay",
+                "popup",
+                "split",
+                "tab",
+                "zoomed"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "sidebar-right",
+              "description": "Docked to the right edge of the TUI as a persistent, resizable,\ncollapsible chrome region. Global singleton — only one pane may be\ndocked at a time.",
+              "type": "string"
+            }
+          ]
         },
         "PluginPlatform": {
           "enum": [

@@ -40,7 +40,9 @@ use self::navigator::render_navigator_overlay;
 pub(crate) use self::onboarding::onboarding_welcome_continue_rect;
 use self::onboarding::render_onboarding_overlay;
 pub(crate) use self::panes::popup_pane_rects;
-use self::panes::{render_empty, render_popup_pane, resize_popup_pane};
+use self::panes::{
+    render_docked_pane, render_empty, render_popup_pane, resize_docked_pane, resize_popup_pane,
+};
 pub(crate) use self::release_notes::{
     product_announcement_display_lines, release_notes_close_button_rect,
     release_notes_display_lines, release_notes_wrapped_line_count, PRODUCT_ANNOUNCEMENT_MODAL_SIZE,
@@ -230,8 +232,14 @@ fn compute_view_internal(
             .clamp(app.sidebar_min_width, app.sidebar_max_width)
     };
 
-    let [sidebar_area, main_area] =
-        Layout::horizontal([Constraint::Length(sidebar_w), Constraint::Min(1)]).areas(area);
+    let dock_w = docked_pane_width(app);
+
+    let [sidebar_area, main_area, dock_area] = Layout::horizontal([
+        Constraint::Length(sidebar_w),
+        Constraint::Min(1),
+        Constraint::Length(dock_w),
+    ])
+    .areas(area);
 
     let (tab_bar_rect, terminal_area) = app
         .active
@@ -285,6 +293,7 @@ fn compute_view_internal(
     if resize_panes {
         resize_background_tab_panes_for_desktop(app, terminal_runtimes, main_area, cell_size);
         resize_popup_pane(app, terminal_runtimes, terminal_area, cell_size);
+        resize_docked_pane(app, terminal_runtimes, dock_area, cell_size);
     }
 
     let toast_hit_area = app
@@ -299,6 +308,17 @@ fn compute_view_internal(
             )
         })
         .unwrap_or_default();
+
+    let dock_right_divider_rect = if dock_w > 0 && !app.dock_right_collapsed {
+        Rect::new(
+            dock_area.x.saturating_sub(1),
+            dock_area.y,
+            1,
+            dock_area.height,
+        )
+    } else {
+        Rect::default()
+    };
 
     app.view = crate::app::ViewState {
         layout: ViewLayout::Desktop,
@@ -315,8 +335,28 @@ fn compute_view_internal(
         toast_hit_area,
         pane_infos,
         split_borders,
+        dock_right_rect: dock_area,
+        dock_right_divider_rect,
     };
     app.sync_copy_mode_search_geometry();
+}
+
+/// Width (columns) of the right-docked plugin pane region: zero when no
+/// pane is docked, `COLLAPSED_WIDTH` when collapsed in compact mode, zero
+/// when collapsed in hidden mode, otherwise the configured width clamped to
+/// the configured bounds — mirroring the left sidebar's width resolution.
+fn docked_pane_width(app: &AppState) -> u16 {
+    if app.docked_pane.is_none() {
+        return 0;
+    }
+    if app.dock_right_collapsed {
+        return match app.dock_right_collapsed_mode {
+            crate::config::SidebarCollapsedModeConfig::Compact => COLLAPSED_WIDTH,
+            crate::config::SidebarCollapsedModeConfig::Hidden => 0,
+        };
+    }
+    app.dock_right_width
+        .clamp(app.dock_right_min_width, app.dock_right_max_width)
 }
 
 fn compute_mobile_view(
@@ -378,6 +418,8 @@ fn compute_mobile_view(
         toast_hit_area,
         pane_infos,
         split_borders,
+        dock_right_rect: Rect::default(),
+        dock_right_divider_rect: Rect::default(),
     };
     app.sync_copy_mode_search_geometry();
 }
@@ -422,6 +464,7 @@ pub fn render_with_runtime_registry(
 
     // Ambient notifications sit above panes, but below interactive overlays.
     render_notifications(app, frame, terminal_area);
+    render_docked_pane(app, terminal_runtimes, frame, app.view.dock_right_rect);
     render_popup_pane(app, terminal_runtimes, frame, terminal_area);
 
     match app.mode {
@@ -624,6 +667,105 @@ mod tests {
             ),
             bottom_center_toast.height
         );
+    }
+
+    fn fake_docked_pane() -> crate::app::state::DockedPaneState {
+        crate::app::state::DockedPaneState {
+            pane_id: crate::layout::PaneId::alloc(),
+            terminal_id: crate::terminal::TerminalId::alloc(),
+            side: crate::app::state::DockSide::Right,
+        }
+    }
+
+    #[test]
+    fn compute_view_with_dock_tiles_sidebar_terminal_and_dock_without_overlap() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.docked_pane = Some(fake_docked_pane());
+        app.dock_right_width = 40;
+        let area = Rect::new(0, 0, 160, 40);
+
+        compute_view(&mut app, area);
+
+        let sidebar = app.view.sidebar_rect;
+        let terminal = app.view.terminal_area;
+        let dock = app.view.dock_right_rect;
+        assert!(dock.width > 0);
+        assert_eq!(sidebar.x, area.x);
+        assert_eq!(dock.x + dock.width, area.x + area.width);
+        assert_eq!(sidebar.x + sidebar.width, terminal.x);
+        assert_eq!(terminal.x + terminal.width, dock.x);
+        assert_eq!(
+            sidebar.width + terminal.width + dock.width,
+            area.width,
+            "sidebar + terminal + dock must tile the full area width"
+        );
+    }
+
+    #[test]
+    fn compute_view_dock_unoccupied_yields_zero_width_dock() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.docked_pane = None;
+        let area = Rect::new(0, 0, 160, 40);
+
+        compute_view(&mut app, area);
+
+        assert_eq!(app.view.dock_right_rect.width, 0);
+    }
+
+    #[test]
+    fn compute_view_dock_collapsed_hidden_yields_zero_width() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.docked_pane = Some(fake_docked_pane());
+        app.dock_right_collapsed = true;
+        app.dock_right_collapsed_mode = crate::config::SidebarCollapsedModeConfig::Hidden;
+        let area = Rect::new(0, 0, 160, 40);
+
+        compute_view(&mut app, area);
+
+        assert_eq!(app.view.dock_right_rect.width, 0);
+    }
+
+    #[test]
+    fn compute_view_dock_collapsed_compact_yields_collapsed_width() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.docked_pane = Some(fake_docked_pane());
+        app.dock_right_collapsed = true;
+        app.dock_right_collapsed_mode = crate::config::SidebarCollapsedModeConfig::Compact;
+        let area = Rect::new(0, 0, 160, 40);
+
+        compute_view(&mut app, area);
+
+        assert_eq!(app.view.dock_right_rect.width, COLLAPSED_WIDTH);
+    }
+
+    #[test]
+    fn compute_view_dock_width_clamps_to_configured_bounds() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.docked_pane = Some(fake_docked_pane());
+        app.dock_right_min_width = 24;
+        app.dock_right_max_width = 80;
+        app.dock_right_width = 200;
+        let area = Rect::new(0, 0, 160, 40);
+
+        compute_view(&mut app, area);
+
+        assert_eq!(app.view.dock_right_rect.width, 80);
+
+        app.dock_right_width = 1;
+        compute_view(&mut app, area);
+        assert_eq!(app.view.dock_right_rect.width, 24);
+    }
+
+    #[test]
+    fn compute_view_mobile_yields_empty_dock_rect() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.docked_pane = Some(fake_docked_pane());
+        let area = Rect::new(0, 0, 40, 20); // below mobile_width_threshold
+
+        compute_view(&mut app, area);
+
+        assert_eq!(app.view.layout, ViewLayout::Mobile);
+        assert_eq!(app.view.dock_right_rect, Rect::default());
     }
 
     #[test]

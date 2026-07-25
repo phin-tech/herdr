@@ -41,6 +41,56 @@ impl App {
         encode_success(id, ResponseResult::Ok {})
     }
 
+    pub(super) fn open_plugin_docked_pane(
+        &mut self,
+        id: String,
+        params: PluginPaneOpenParams,
+        plugin: &InstalledPluginInfo,
+        pane: PluginManifestPane,
+    ) -> String {
+        let context = self.current_plugin_context("plugin-pane");
+        let extra_env =
+            match self.plugin_pane_launch_env(plugin, &pane.id, params.env.clone(), &context) {
+                Ok(env) => env,
+                Err((code, message)) => return encode_error(id, &code, message),
+            };
+        let cwd = Some(self.plugin_pane_cwd(plugin, params.cwd));
+        if let Err(err) = self.spawn_docked_argv_command(&pane.command, cwd, extra_env) {
+            return encode_error(id, "plugin_pane_open_failed", err.to_string());
+        }
+        let Some(dock) = self.state.docked_pane.clone() else {
+            return encode_error(id, "plugin_pane_open_failed", "docked pane disappeared");
+        };
+        if let Some(terminal) = self.state.terminals.get_mut(&dock.terminal_id) {
+            terminal.set_manual_label(pane.title.clone());
+        }
+        self.state.plugin_panes.insert(
+            dock.pane_id,
+            crate::app::state::PluginPaneRecord {
+                plugin_id: plugin.plugin_id.clone(),
+                entrypoint: pane.id.clone(),
+            },
+        );
+        if params.focus {
+            self.state.dock_focused = true;
+            self.state.mode = crate::app::Mode::Terminal;
+        }
+        self.schedule_session_save();
+        let Some(pane_info) = self.dock_pane_info() else {
+            return encode_error(id, "plugin_pane_open_failed", "docked pane disappeared");
+        };
+        encode_success(
+            id,
+            ResponseResult::PluginPaneOpened {
+                plugin_pane: PluginPaneInfo {
+                    plugin_id: plugin.plugin_id.clone(),
+                    entrypoint: pane.id,
+                    pane: pane_info,
+                },
+            },
+        )
+    }
+
     pub(super) fn open_plugin_overlay_pane(
         &mut self,
         id: String,

@@ -288,7 +288,7 @@ while Windows clients connect to a named pipe. CLI calls through
 Manifest pane `placement` defaults to `overlay`, which opens a temporary zoomed
 overlay over the active pane and restores the previous focus and zoom when it
 closes. A `plugin.pane.open` request can override the manifest placement with
-`overlay`, `popup`, `split`, `tab`, or `zoomed`.
+`overlay`, `popup`, `split`, `tab`, `zoomed`, or `sidebar-right`.
 
 `placement = "popup"` opens a session-modal terminal popup without changing the
 tiled layout. It accepts optional `width` and `height` fields in the manifest or
@@ -323,6 +323,28 @@ Its process does not receive `HERDR_PANE_ID`; the underlying tiled pane remains
 available through `HERDR_PLUGIN_CONTEXT_JSON`.
 Opening a popup returns `ui_busy` while Settings, Copy mode, or another Herdr
 modal is active, and `plugin.pane.open` returns an `ok` result after launch.
+
+`placement = "sidebar-right"` docks a plugin pane to the right edge of the
+window as a persistent, resizable, collapsible chrome region that coexists
+with the tiled workspace panes, instead of floating over them like a popup.
+It is a global singleton: only one pane may be docked at a time, and a second
+`plugin.pane.open` with `sidebar-right` returns `ui_busy` while one is already
+open. It does not accept `width`, `height`, `workspace_id`, `target_pane_id`,
+or `direction` — the dock's size is controlled by the user (drag the divider,
+or the `ui.dock_right_width`/`ui.dock_right_min_width`/`ui.dock_right_max_width`
+config keys) rather than by the plugin. Unlike a popup, the docked pane is a
+normal addressable plugin pane: `plugin.pane.focus` and `plugin.pane.close`
+work against its pane ID. The docked process is not restored across a Herdr
+restart — only the dock's width and collapsed state persist, the same as the
+left sidebar.
+
+```toml
+[[panes]]
+id = "notes"
+title = "Notes"
+placement = "sidebar-right"
+command = ["herdr-notes"]
+```
 
 On Windows, build commands, action commands, and event commands resolve common
 `PATHEXT` shims such as `npm.cmd`, `bun.cmd`, and `pnpm.cmd` when the bare

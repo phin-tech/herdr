@@ -682,6 +682,7 @@ fn parse_pane_placement(value: &str) -> Option<PluginPanePlacement> {
         "split" => Some(PluginPanePlacement::Split),
         "tab" => Some(PluginPanePlacement::Tab),
         "zoomed" | "fullscreen" => Some(PluginPanePlacement::Zoomed),
+        "sidebar-right" | "sidebar_right" => Some(PluginPanePlacement::SidebarRight),
         _ => {
             eprintln!("invalid pane placement: {value}");
             None
@@ -1659,7 +1660,7 @@ fn print_plugin_action_help() {
 
 fn print_plugin_pane_help() {
     eprintln!("herdr plugin pane commands:");
-    eprintln!("  herdr plugin pane open --plugin ID --entrypoint ID [--placement overlay|popup|split|tab|zoomed] [--width SIZE] [--height SIZE] [--workspace ID] [--target-pane PANE] [--direction right|down] [--cwd PATH] [--env KEY=VALUE] [--focus|--no-focus]");
+    eprintln!("  herdr plugin pane open --plugin ID --entrypoint ID [--placement overlay|popup|split|tab|zoomed|sidebar-right] [--width SIZE] [--height SIZE] [--workspace ID] [--target-pane PANE] [--direction right|down] [--cwd PATH] [--env KEY=VALUE] [--focus|--no-focus]");
     eprintln!("  herdr plugin pane focus <pane_id>");
     eprintln!("  herdr plugin pane close <pane_id>");
 }
@@ -1826,5 +1827,17 @@ mod tests {
         let _ = std::fs::remove_dir_all(config_dir);
         let _ = std::fs::remove_dir_all(state_dir);
         let _ = std::fs::remove_dir_all(legacy_dir);
+    }
+
+    #[test]
+    fn parse_pane_placement_accepts_sidebar_right_hyphen_and_underscore() {
+        assert_eq!(
+            parse_pane_placement("sidebar-right"),
+            Some(PluginPanePlacement::SidebarRight)
+        );
+        assert_eq!(
+            parse_pane_placement("sidebar_right"),
+            Some(PluginPanePlacement::SidebarRight)
+        );
     }
 }

@@ -524,6 +524,18 @@
           "description": "Toggle sidebar collapse."
         },
         {
+          "key": "keys.toggle_dock_right",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Collapse/expand the right-docked plugin pane region. Unset by default."
+        },
+        {
+          "key": "keys.focus_dock_right",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Move keyboard focus into/out of the right-docked plugin pane region. Unset by default."
+        },
+        {
           "key": "keys.indexed.tabs",
           "type": "string",
           "default": "unset",
@@ -576,6 +588,34 @@
           "type": "enum",
           "default": "compact",
           "description": "Collapsed sidebar presentation.",
+          "values": [
+            "compact",
+            "hidden"
+          ]
+        },
+        {
+          "key": "ui.dock_right_width",
+          "type": "integer",
+          "default": "40",
+          "description": "Width (columns) of the right-docked plugin pane region when expanded."
+        },
+        {
+          "key": "ui.dock_right_min_width",
+          "type": "integer",
+          "default": "24",
+          "description": "Minimum right dock width (columns) when expanded."
+        },
+        {
+          "key": "ui.dock_right_max_width",
+          "type": "integer",
+          "default": "80",
+          "description": "Maximum right dock width (columns) when expanded."
+        },
+        {
+          "key": "ui.dock_right_collapsed_mode",
+          "type": "enum",
+          "default": "compact",
+          "description": "Collapsed right dock presentation.",
           "values": [
             "compact",
             "hidden"

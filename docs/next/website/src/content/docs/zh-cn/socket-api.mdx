@@ -473,6 +473,8 @@ v1 没有 Herdr 管理的插件存储 API。`HERDR_PLUGIN_CONFIG_DIR` 和 `HERDR
 
 `plugin.pane.open` 要求已安装、已启用、平台兼容的插件,然后把请求的清单 `[[panes]]` 入口点作为 argv 支撑的终端窗格启动。清单窗格的 `placement` 默认为 `overlay`;请求的 `placement` 可以用 `overlay`、`popup`、`split`、`tab` 或 `zoomed` 覆盖清单。overlay 和 popup 使用活动平铺窗格作为启动上下文。弹窗终端是会话级模态界面,不会改变标签页布局;可选的 `width` 和 `height` 以终端单元格数或 `"80%"` 这样的百分比设置外层尺寸。省略时默认为终端大小的一半,过小的值会限制为弹窗最小尺寸。弹窗没有窗格 id,不属于任何 `pane.*` 或智能体 API,不会发出窗格生命周期事件,会把插件焦点上下文保留在底层平铺窗格上,也不会向其进程导出 `HERDR_PANE_ID`。弹窗启动返回 `ok`;`popup.close` 关闭活动弹窗,没有弹窗时返回 `popup_not_open`。split 和 zoomed 针对已有窗格,tab 可以针对工作区。split、tab、zoomed 和 overlay 打开后表现得像普通 Herdr 窗格,`plugin.pane.focus` 和 `plugin.pane.close` 仍可操作这些窗格。
 
+`sidebar-right` 会把窗格停靠在窗口右侧边缘,成为一个持久的、可调整大小、可折叠的区域,而不是悬浮在工作区之上。它是一个全局单例——在已有窗格停靠时再次以 `sidebar-right` 调用 `plugin.pane.open` 会返回 `ui_busy`——并且不接受 `width`、`height`、`workspace_id`、`target_pane_id` 或 `direction`;停靠区域的大小由用户控制(拖动分隔线,或使用 `ui.dock_right_width`/`ui.dock_right_min_width`/`ui.dock_right_max_width`)。与弹窗不同,停靠窗格是一个普通的、可寻址的插件窗格:`plugin.pane.focus` 和 `plugin.pane.close` 可以操作它的窗格 ID。其进程不会在 Herdr 重启后恢复;只有停靠区域的宽度和折叠状态会被持久化。
+
 ## Socket 传输
 
 Herdr 在本地 socket 上使用换行分隔的 JSON。在 Unix 上,那个 socket 是 Unix 域 socket。在 Windows 上,是命名管道。

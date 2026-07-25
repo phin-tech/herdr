@@ -400,6 +400,13 @@ impl App {
                 "popup panes can only open from the normal workspace view",
             );
         }
+        if placement == PluginPanePlacement::SidebarRight && self.state.docked_pane.is_some() {
+            return encode_error(
+                id,
+                "ui_busy",
+                "a pane is already docked to the right sidebar",
+            );
+        }
         match placement {
             PluginPanePlacement::Overlay | PluginPanePlacement::Popup => {
                 if params.workspace_id.is_some()
@@ -410,6 +417,18 @@ impl App {
                         id,
                         "invalid_params",
                         "overlay and popup plugin panes target the active pane",
+                    );
+                }
+            }
+            PluginPanePlacement::SidebarRight => {
+                if params.workspace_id.is_some()
+                    || params.target_pane_id.is_some()
+                    || params.direction.is_some()
+                {
+                    return encode_error(
+                        id,
+                        "invalid_params",
+                        "sidebar-right plugin panes target the docked region, not a workspace pane",
                     );
                 }
             }
@@ -438,6 +457,9 @@ impl App {
                 self.open_plugin_overlay_pane(id, params, &plugin, pane)
             }
             PluginPanePlacement::Popup => self.open_plugin_popup_pane(id, params, &plugin, pane),
+            PluginPanePlacement::SidebarRight => {
+                self.open_plugin_docked_pane(id, params, &plugin, pane)
+            }
             PluginPanePlacement::Split | PluginPanePlacement::Zoomed => {
                 self.open_plugin_split_pane(id, params, &plugin, pane, placement)
             }
@@ -450,6 +472,37 @@ impl App {
         id: String,
         params: PluginPaneFocusParams,
     ) -> String {
+        if params.pane_id == crate::app::App::DOCK_RIGHT_PUBLIC_PANE_ID {
+            if self.state.docked_pane.is_none() {
+                return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
+            }
+            self.state.dock_focused = true;
+            self.state.mode = crate::app::Mode::Terminal;
+            self.render_dirty
+                .store(true, std::sync::atomic::Ordering::Release);
+            self.render_notify.notify_one();
+            let Some(record) = self
+                .state
+                .docked_pane
+                .as_ref()
+                .and_then(|dock| self.state.plugin_panes.get(&dock.pane_id).cloned())
+            else {
+                return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
+            };
+            let Some(pane) = self.dock_pane_info() else {
+                return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
+            };
+            return encode_success(
+                id,
+                ResponseResult::PluginPaneFocused {
+                    plugin_pane: PluginPaneInfo {
+                        plugin_id: record.plugin_id,
+                        entrypoint: record.entrypoint,
+                        pane,
+                    },
+                },
+            );
+        }
         let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
             return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
         };
@@ -481,6 +534,17 @@ impl App {
         id: String,
         params: PluginPaneCloseParams,
     ) -> String {
+        if params.pane_id == crate::app::App::DOCK_RIGHT_PUBLIC_PANE_ID {
+            if !self.close_docked_pane() {
+                return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
+            }
+            return encode_success(
+                id,
+                ResponseResult::PluginPaneClosed {
+                    pane_id: params.pane_id,
+                },
+            );
+        }
         let Some((_ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
             return encode_error(id, "plugin_pane_not_found", "plugin pane not found");
         };
@@ -3657,5 +3721,231 @@ command = ["act.exe"]
 
         let _ = std::fs::remove_dir_all(root);
         let _ = std::fs::remove_dir_all(registry_dir);
+    }
+
+    #[test]
+    fn manifest_pane_loads_sidebar_right_placement() {
+        let root = unique_temp_path("plugin-sidebar-right-manifest");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.sidebar-right"
+name = "Sidebar Right"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+platforms = ["linux", "macos", "windows"]
+
+[[panes]]
+id = "dock"
+title = "Docked Board"
+placement = "sidebar-right"
+command = ["echo", "dock"]
+"#,
+        );
+
+        let plugin = load_plugin_manifest(&root.display().to_string(), true)
+            .expect("sidebar-right placement should load");
+        assert_eq!(plugin.panes[0].placement, PluginPanePlacement::SidebarRight);
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn plugin_pane_open_rejects_size_params_for_sidebar_right() {
+        let mut app = test_app();
+        let root = unique_temp_path("plugin-sidebar-right-size");
+        write_manifest(&root);
+        link_manifest(&mut app, &root);
+
+        let response = app.handle_api_request(Request {
+            id: "dock-open-size".into(),
+            method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                plugin_id: "example.worktree-bootstrap".into(),
+                entrypoint: "board".into(),
+                placement: Some(PluginPanePlacement::SidebarRight),
+                width: Some(crate::popup_size::PopupSize::Percent(50)),
+                height: None,
+                workspace_id: None,
+                target_pane_id: None,
+                direction: None,
+                cwd: None,
+                focus: false,
+                env: std::collections::HashMap::new(),
+            }),
+        });
+
+        let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(value["error"]["code"], "invalid_params");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn plugin_pane_open_rejects_workspace_target_for_sidebar_right() {
+        let mut app = test_app();
+        let root = unique_temp_path("plugin-sidebar-right-target");
+        write_manifest(&root);
+        link_manifest(&mut app, &root);
+
+        let response = app.handle_api_request(Request {
+            id: "dock-open-target".into(),
+            method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                plugin_id: "example.worktree-bootstrap".into(),
+                entrypoint: "board".into(),
+                placement: Some(PluginPanePlacement::SidebarRight),
+                width: None,
+                height: None,
+                workspace_id: None,
+                target_pane_id: Some("w1-1".into()),
+                direction: None,
+                cwd: None,
+                focus: false,
+                env: std::collections::HashMap::new(),
+            }),
+        });
+
+        let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(value["error"]["code"], "invalid_params");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn plugin_pane_open_sidebar_right_second_open_returns_ui_busy() {
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("dock-busy")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = crate::app::Mode::Terminal;
+        let root = unique_temp_path("plugin-sidebar-right-busy");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.dock-busy"
+name = "Dock Busy"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "board"
+title = "Docked Board"
+command = ["sh", "-c", "sleep 5"]
+"#,
+        );
+        link_manifest(&mut app, &root);
+
+        let open = |app: &mut App, id: &str| {
+            app.handle_api_request(Request {
+                id: id.into(),
+                method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                    plugin_id: "example.dock-busy".into(),
+                    entrypoint: "board".into(),
+                    placement: Some(PluginPanePlacement::SidebarRight),
+                    width: None,
+                    height: None,
+                    workspace_id: None,
+                    target_pane_id: None,
+                    direction: None,
+                    cwd: None,
+                    focus: false,
+                    env: std::collections::HashMap::new(),
+                }),
+            })
+        };
+
+        let first = open(&mut app, "dock-open-1");
+        let ResponseResult::PluginPaneOpened { .. } = response_result(&first) else {
+            panic!("expected first dock open to succeed: {first}");
+        };
+        assert!(app.state.docked_pane.is_some());
+
+        let second = open(&mut app, "dock-open-2");
+        let value: serde_json::Value = serde_json::from_str(&second).unwrap();
+        assert_eq!(value["error"]["code"], "ui_busy");
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn plugin_pane_open_sidebar_right_registers_addressable_plugin_pane() {
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("dock-addr")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = crate::app::Mode::Terminal;
+        let root = unique_temp_path("plugin-sidebar-right-addr");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.dock-addr"
+name = "Dock Addr"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "board"
+title = "Docked Board"
+command = ["sh", "-c", "sleep 5"]
+"#,
+        );
+        link_manifest(&mut app, &root);
+
+        let open = app.handle_api_request(Request {
+            id: "dock-open".into(),
+            method: Method::PluginPaneOpen(PluginPaneOpenParams {
+                plugin_id: "example.dock-addr".into(),
+                entrypoint: "board".into(),
+                placement: Some(PluginPanePlacement::SidebarRight),
+                width: None,
+                height: None,
+                workspace_id: None,
+                target_pane_id: None,
+                direction: None,
+                cwd: None,
+                focus: true,
+                env: std::collections::HashMap::new(),
+            }),
+        });
+        let ResponseResult::PluginPaneOpened { plugin_pane } = response_result(&open) else {
+            panic!("expected dock open to succeed: {open}");
+        };
+        assert_eq!(plugin_pane.pane.pane_id, "dock_right");
+        assert!(app.state.dock_focused);
+
+        let focus = app.handle_api_request(Request {
+            id: "dock-focus".into(),
+            method: Method::PluginPaneFocus(crate::api::schema::PluginPaneFocusParams {
+                pane_id: "dock_right".into(),
+            }),
+        });
+        assert!(
+            focus.contains("plugin_pane_focused"),
+            "expected focus to succeed: {focus}"
+        );
+
+        let close = app.handle_api_request(Request {
+            id: "dock-close".into(),
+            method: Method::PluginPaneClose(crate::api::schema::PluginPaneCloseParams {
+                pane_id: "dock_right".into(),
+            }),
+        });
+        assert!(
+            close.contains("plugin_pane_closed"),
+            "expected close to succeed: {close}"
+        );
+        assert!(app.state.docked_pane.is_none());
+        assert!(app.state.plugin_panes.is_empty());
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let _ = std::fs::remove_dir_all(root);
     }
 }

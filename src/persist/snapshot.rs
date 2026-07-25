@@ -26,6 +26,13 @@ pub struct SessionSnapshot {
     pub sidebar_section_split: Option<f32>,
     #[serde(default)]
     pub collapsed_space_keys: std::collections::HashSet<String>,
+    /// Right dock geometry/collapse state. `None` on older snapshots keeps
+    /// them forward-compatible. The docked plugin process itself is never
+    /// persisted — like the popup, it does not survive a restart.
+    #[serde(default)]
+    pub dock_right_width: Option<u16>,
+    #[serde(default)]
+    pub dock_right_collapsed: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -184,6 +191,10 @@ struct RawSessionSnapshot {
     sidebar_section_split: Option<f32>,
     #[serde(default)]
     collapsed_space_keys: std::collections::HashSet<String>,
+    #[serde(default)]
+    dock_right_width: Option<u16>,
+    #[serde(default)]
+    dock_right_collapsed: Option<bool>,
 }
 
 fn migrate_snapshot(raw: RawSessionSnapshot) -> Result<SessionSnapshot, String> {
@@ -199,6 +210,8 @@ fn migrate_snapshot(raw: RawSessionSnapshot) -> Result<SessionSnapshot, String> 
         sidebar_width: raw.sidebar_width,
         sidebar_section_split: raw.sidebar_section_split,
         collapsed_space_keys: raw.collapsed_space_keys,
+        dock_right_width: raw.dock_right_width,
+        dock_right_collapsed: raw.dock_right_collapsed,
     })
 }
 
@@ -261,6 +274,8 @@ pub fn capture(
     sidebar_width: u16,
     sidebar_section_split: f32,
     collapsed_space_keys: std::collections::HashSet<String>,
+    dock_right_width: u16,
+    dock_right_collapsed: bool,
 ) -> SessionSnapshot {
     SessionSnapshot {
         version: SNAPSHOT_VERSION,
@@ -273,6 +288,8 @@ pub fn capture(
         sidebar_width: Some(sidebar_width),
         sidebar_section_split: Some(sidebar_section_split),
         collapsed_space_keys,
+        dock_right_width: Some(dock_right_width),
+        dock_right_collapsed: Some(dock_right_collapsed),
     }
 }
 
@@ -541,6 +558,8 @@ mod tests {
             state.sidebar_width,
             state.sidebar_section_split,
             state.collapsed_space_keys.clone(),
+            state.dock_right_width,
+            state.dock_right_collapsed,
         )
     }
 
@@ -605,6 +624,8 @@ mod tests {
             sidebar_width: Some(26),
             sidebar_section_split: Some(0.5),
             collapsed_space_keys: std::collections::HashSet::new(),
+            dock_right_width: None,
+            dock_right_collapsed: None,
         };
         let json = serde_json::to_string(&snap).unwrap();
         let restored = parse_snapshot(&json).unwrap();
@@ -612,6 +633,55 @@ mod tests {
         assert_eq!(restored.active, None);
         assert_eq!(restored.sidebar_width, Some(26));
         assert_eq!(restored.sidebar_section_split, Some(0.5));
+    }
+
+    #[test]
+    fn round_trip_dock_right_fields_present() {
+        let snap = SessionSnapshot {
+            version: SNAPSHOT_VERSION,
+            workspaces: vec![],
+            active: None,
+            selected: 0,
+            sidebar_width: Some(26),
+            sidebar_section_split: Some(0.5),
+            collapsed_space_keys: std::collections::HashSet::new(),
+            dock_right_width: Some(48),
+            dock_right_collapsed: Some(true),
+        };
+        let json = serde_json::to_string(&snap).unwrap();
+        let restored = parse_snapshot(&json).unwrap();
+        assert_eq!(restored.dock_right_width, Some(48));
+        assert_eq!(restored.dock_right_collapsed, Some(true));
+    }
+
+    #[test]
+    fn round_trip_dock_right_fields_absent_on_older_snapshot() {
+        // Older snapshots predating the dock feature won't have these keys;
+        // `#[serde(default)]` must keep them forward-compatible as `None`.
+        let json = serde_json::json!({
+            "version": SNAPSHOT_VERSION,
+            "workspaces": [],
+            "active": null,
+            "selected": 0,
+            "sidebar_width": 26,
+            "sidebar_section_split": 0.5,
+        })
+        .to_string();
+        let restored = parse_snapshot(&json).unwrap();
+        assert_eq!(restored.dock_right_width, None);
+        assert_eq!(restored.dock_right_collapsed, None);
+    }
+
+    #[test]
+    fn capture_from_state_persists_dock_right_geometry() {
+        let mut state = crate::app::state::AppState::test_new();
+        state.dock_right_width = 52;
+        state.dock_right_collapsed = true;
+
+        let snapshot = capture_from_state(&state);
+
+        assert_eq!(snapshot.dock_right_width, Some(52));
+        assert_eq!(snapshot.dock_right_collapsed, Some(true));
     }
 
     #[test]
@@ -692,6 +762,8 @@ mod tests {
             sidebar_width: Some(26),
             sidebar_section_split: Some(0.5),
             collapsed_space_keys: std::collections::HashSet::new(),
+            dock_right_width: None,
+            dock_right_collapsed: None,
             version: SNAPSHOT_VERSION,
         };
 
@@ -1254,6 +1326,8 @@ mod tests {
             sidebar_width: Some(26),
             sidebar_section_split: Some(0.5),
             collapsed_space_keys: std::collections::HashSet::new(),
+            dock_right_width: None,
+            dock_right_collapsed: None,
         };
 
         let json = serde_json::to_string(&snap).unwrap();
