@@ -227,6 +227,62 @@ mod tests {
         assert!(!app.close_docked_pane());
     }
 
+    fn pane_read_dock_request() -> crate::api::schema::Request {
+        crate::api::schema::Request {
+            id: "read-dock".into(),
+            method: crate::api::schema::Method::PaneRead(crate::api::schema::PaneReadParams {
+                pane_id: App::DOCK_RIGHT_PUBLIC_PANE_ID.into(),
+                source: crate::api::schema::ReadSource::Visible,
+                lines: None,
+                format: crate::api::schema::ReadFormat::default(),
+                strip_ansi: true,
+            }),
+        }
+    }
+
+    /// `plugin.pane.open` hands back `dock_right` as a pane id, so `pane.read`
+    /// must accept that same id. The dock has no workspace, so it cannot go
+    /// through `parse_pane_id` and needs its own branch.
+    #[tokio::test]
+    async fn pane_read_resolves_the_docked_pane_by_its_public_id() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &crate::config::Config::default(),
+            true,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("dock")];
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        let (runtime, _rx) = TerminalRuntime::test_with_channel(40, 12);
+        app.install_test_docked_runtime(runtime);
+
+        let response = app.handle_api_request(pane_read_dock_request());
+        let response: crate::api::schema::SuccessResponse =
+            serde_json::from_str(&response).expect("dock read should succeed");
+
+        match response.result {
+            crate::api::schema::ResponseResult::PaneRead { read } => {
+                assert_eq!(read.pane_id, App::DOCK_RIGHT_PUBLIC_PANE_ID);
+            }
+            other => panic!("expected pane_read result, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pane_read_on_dock_id_without_a_dock_reports_pane_not_found() {
+        let mut app = app_with_dock();
+        app.state.docked_pane = None;
+
+        let response = app.handle_api_request(pane_read_dock_request());
+        let response: crate::api::schema::ErrorResponse =
+            serde_json::from_str(&response).expect("expected an error response");
+
+        assert_eq!(response.error.code, "pane_not_found");
+    }
+
     #[test]
     fn dock_survives_background_workspace_removal() {
         let mut app = app_with_dock();

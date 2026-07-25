@@ -1162,6 +1162,38 @@ impl App {
     }
 
     pub(super) fn handle_pane_read(&mut self, id: String, params: PaneReadParams) -> String {
+        // The docked pane lives outside any workspace, so it has no
+        // (ws_idx, pane_id) pair for `parse_pane_id` to return. It is still
+        // addressable by the synthetic id that `plugin.pane.open` hands back.
+        if params.pane_id == Self::DOCK_RIGHT_PUBLIC_PANE_ID {
+            let Some(dock) = self.state.docked_pane.as_ref() else {
+                return pane_not_found(id, &params.pane_id);
+            };
+            let Some(runtime) = self.terminal_runtimes.get(&dock.terminal_id) else {
+                return pane_not_found(id, &params.pane_id);
+            };
+            let snapshot = crate::app::api_helpers::read_terminal_snapshot(
+                runtime,
+                params.source,
+                params.format,
+                params.lines,
+            );
+            return encode_success(
+                id,
+                ResponseResult::PaneRead {
+                    read: PaneReadResult {
+                        pane_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+                        workspace_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+                        tab_id: Self::DOCK_RIGHT_PUBLIC_PANE_ID.to_string(),
+                        source: params.source,
+                        format: params.format,
+                        text: snapshot.text,
+                        revision: 0,
+                        truncated: snapshot.truncated,
+                    },
+                },
+            );
+        }
         let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
             return pane_not_found(id, &params.pane_id);
         };
