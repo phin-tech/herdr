@@ -287,7 +287,9 @@ split、tab、zoomed 和 overlay 插件窗格打开后就是普通的 Herdr 窗�
 `placement = "sidebar-right"` 会将插件窗格停靠在窗口右侧边缘,成为一个持久的、
 可调整大小、可折叠的区域,与平铺的工作区窗格共存,而不是像弹窗那样悬浮其上。
 多个插件可以同时停靠。对已停靠的入口点再次调用 `plugin.pane.open` 会聚焦并将其
-置于前台,而不是再启动一个副本,因此切换类快捷键是幂等的。它不接受 `width`、`height`、
+置于前台,而不是再启动一个副本,因此切换类快捷键是幂等的。当停靠了多个窗格时,停靠区域会出现一行标题栏,在可点击的 `‹` 和 `›` 箭头之间显示
+当前窗格清单中的 `title`;`keys.next_dock_pane` 和 `keys.previous_dock_pane`
+可以用键盘完成同样的切换,默认未绑定。它不接受 `width`、`height`、
 `workspace_id`、`target_pane_id` 或 `direction`——停靠区域的大小由用户控制
 (拖动分隔线,或使用 `ui.dock_right_width`/`ui.dock_right_min_width`/
 `ui.dock_right_max_width` 配置项),而不是由插件控制。与弹窗不同,停靠窗格是

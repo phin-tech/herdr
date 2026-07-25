@@ -431,6 +431,43 @@ mod tests {
     }
 
     #[test]
+    fn cycling_wraps_in_both_directions() {
+        let mut app = app_with_dock();
+        app.state.docked_panes = vec![
+            dock_entry("alpha", "one"),
+            dock_entry("beta", "two"),
+            dock_entry("gamma", "three"),
+        ];
+        app.state.dock_active = 0;
+
+        app.state.cycle_docked_pane(true);
+        assert_eq!(app.state.dock_active, 1);
+        app.state.cycle_docked_pane(true);
+        app.state.cycle_docked_pane(true);
+        assert_eq!(app.state.dock_active, 0, "forward should wrap to the start");
+
+        app.state.cycle_docked_pane(false);
+        assert_eq!(app.state.dock_active, 2, "back should wrap to the end");
+    }
+
+    /// A cycle binding must be harmless when there is nothing to cycle, so it
+    /// can be bound unconditionally.
+    #[test]
+    fn cycling_is_a_no_op_below_two_docked_panes() {
+        let mut app = app_with_dock();
+        app.state.docked_panes.clear();
+        app.state.dock_active = 0;
+        app.state.cycle_docked_pane(true);
+        assert_eq!(app.state.dock_active, 0);
+
+        app.state.docked_panes = vec![dock_entry("alpha", "one")];
+        app.state.cycle_docked_pane(true);
+        assert_eq!(app.state.dock_active, 0);
+        app.state.cycle_docked_pane(false);
+        assert_eq!(app.state.dock_active, 0);
+    }
+
+    #[test]
     fn closing_the_last_docked_pane_clears_dock_focus() {
         let mut app = app_with_dock();
         app.state.dock_focused = true;

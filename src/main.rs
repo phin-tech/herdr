@@ -219,6 +219,8 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # toggle_sidebar = "prefix+b"
 # toggle_dock_right = "prefix+shift+b"  # collapse/expand the right-docked plugin pane region
 # focus_dock_right = "prefix+shift+f"   # move keyboard focus into/out of the right-docked plugin pane region
+# next_dock_pane = ""      # show the next plugin docked to the right; unset by default
+# previous_dock_pane = ""  # show the previous plugin docked to the right; unset by default
 
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
 # They are independent from focus_pane_*. Do not include prefix+, esc, enter, tab, or 1..9 here.

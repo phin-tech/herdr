@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 mod dialogs;
+mod hoarder_dock_header;
 mod keybind_help;
 mod menus;
 mod mobile;
@@ -26,6 +27,7 @@ use self::dialogs::{
     render_confirm_close_overlay, render_new_linked_worktree_overlay,
     render_open_existing_worktree_overlay, render_remove_worktree_overlay, render_rename_overlay,
 };
+pub(crate) use self::hoarder_dock_header::DockHeaderView;
 use self::keybind_help::render_keybind_help_overlay;
 use self::menus::{
     render_context_menu, render_copy_mode_overlay, render_global_launcher_menu,
@@ -293,7 +295,8 @@ fn compute_view_internal(
     if resize_panes {
         resize_background_tab_panes_for_desktop(app, terminal_runtimes, main_area, cell_size);
         resize_popup_pane(app, terminal_runtimes, terminal_area, cell_size);
-        resize_docked_pane(app, terminal_runtimes, dock_area, cell_size);
+        let (_, dock_body) = hoarder_dock_header::split_dock_area(app, dock_area);
+        resize_docked_pane(app, terminal_runtimes, dock_body, cell_size);
     }
 
     let toast_hit_area = app
@@ -336,6 +339,7 @@ fn compute_view_internal(
         pane_infos,
         split_borders,
         dock_right_rect: dock_area,
+        dock_header: hoarder_dock_header::compute_dock_header_view(app, dock_area),
         dock_right_divider_rect,
     };
     app.sync_copy_mode_search_geometry();
@@ -419,6 +423,7 @@ fn compute_mobile_view(
         pane_infos,
         split_borders,
         dock_right_rect: Rect::default(),
+        dock_header: DockHeaderView::default(),
         dock_right_divider_rect: Rect::default(),
     };
     app.sync_copy_mode_search_geometry();
@@ -464,7 +469,11 @@ pub fn render_with_runtime_registry(
 
     // Ambient notifications sit above panes, but below interactive overlays.
     render_notifications(app, frame, terminal_area);
-    render_docked_pane(app, terminal_runtimes, frame, app.view.dock_right_rect);
+    {
+        let (_, dock_body) = hoarder_dock_header::split_dock_area(app, app.view.dock_right_rect);
+        render_docked_pane(app, terminal_runtimes, frame, dock_body);
+        hoarder_dock_header::render_dock_header(app, frame, &app.view.dock_header);
+    }
     render_popup_pane(app, terminal_runtimes, frame, terminal_area);
 
     match app.mode {

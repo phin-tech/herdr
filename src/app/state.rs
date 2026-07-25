@@ -833,6 +833,8 @@ pub struct ViewState {
     pub dock_right_rect: Rect,
     /// Drag handle between the tiled panes and the right dock.
     pub dock_right_divider_rect: Rect,
+    /// Geometry of the dock's `‹ Title ›` header row.
+    pub dock_header: crate::ui::DockHeaderView,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1767,6 +1769,20 @@ impl AppState {
         self.docked_pane_index_for(plugin_id, entrypoint)
     }
 
+    /// Show the next/previous docked pane, wrapping. No-op with fewer than
+    /// two docked, so a binding is harmless when only one plugin is docked.
+    pub(crate) fn cycle_docked_pane(&mut self, forward: bool) {
+        let len = self.docked_panes.len();
+        if len < 2 {
+            return;
+        }
+        self.dock_active = if forward {
+            (self.dock_active + 1) % len
+        } else {
+            (self.dock_active + len - 1) % len
+        };
+    }
+
     pub fn is_prefix_key(&self, key: crate::input::TerminalKey) -> bool {
         crate::config::terminal_key_matches_combo(key, (self.prefix_code, self.prefix_mods))
     }
@@ -1940,6 +1956,7 @@ impl AppState {
                 pane_infos: Vec::new(),
                 split_borders: Vec::new(),
                 dock_right_rect: Rect::default(),
+                dock_header: crate::ui::DockHeaderView::default(),
                 dock_right_divider_rect: Rect::default(),
             },
             drag: None,

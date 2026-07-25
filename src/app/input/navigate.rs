@@ -381,6 +381,14 @@ impl App {
                 self.state.dock_right_collapsed = !self.state.dock_right_collapsed;
                 leave_navigate_mode(&mut self.state);
             }
+            NavigateAction::NextDockPane => {
+                self.state.cycle_docked_pane(true);
+                leave_navigate_mode(&mut self.state);
+            }
+            NavigateAction::PreviousDockPane => {
+                self.state.cycle_docked_pane(false);
+                leave_navigate_mode(&mut self.state);
+            }
             NavigateAction::FocusDockRight => {
                 if self.state.docked_pane().is_some() {
                     self.state.dock_focused = !self.state.dock_focused;
@@ -1337,6 +1345,8 @@ pub(crate) enum NavigateAction {
     EnterResizeMode,
     ToggleSidebar,
     ToggleDockRight,
+    NextDockPane,
+    PreviousDockPane,
     FocusDockRight,
     CyclePaneNext,
     CyclePanePrevious,
@@ -1475,6 +1485,8 @@ fn non_indexed_action_for_key(
         (&kb.resize_mode, NavigateAction::EnterResizeMode),
         (&kb.toggle_sidebar, NavigateAction::ToggleSidebar),
         (&kb.toggle_dock_right, NavigateAction::ToggleDockRight),
+        (&kb.next_dock_pane, NavigateAction::NextDockPane),
+        (&kb.previous_dock_pane, NavigateAction::PreviousDockPane),
         (&kb.focus_dock_right, NavigateAction::FocusDockRight),
         (&kb.reload_config, NavigateAction::ReloadConfig),
         (
@@ -1712,6 +1724,14 @@ pub(super) fn execute_navigate_action_in_context(
         }
         NavigateAction::ToggleDockRight => {
             state.dock_right_collapsed = !state.dock_right_collapsed;
+            leave_navigate_mode(state);
+        }
+        NavigateAction::NextDockPane => {
+            state.cycle_docked_pane(true);
+            leave_navigate_mode(state);
+        }
+        NavigateAction::PreviousDockPane => {
+            state.cycle_docked_pane(false);
             leave_navigate_mode(state);
         }
         NavigateAction::FocusDockRight => {

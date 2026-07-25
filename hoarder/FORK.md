@@ -23,7 +23,7 @@ rarely touches the same lines.
 | API surface | `src/app/api/plugins/{mod,panes}.rs` | New arms in existing matches. |
 | State | `src/app/state.rs` | Additive struct fields. Conflicts are trivial. |
 | Layout | `src/ui.rs` | **The one hot spot** — the 2-way → 3-way split in `compute_view_internal`. Keep the region split factored into a helper. |
-| Render | `src/ui/panes.rs` | New `docked_pane_*` fns, mirrors the popup trio. |
+| Render | `src/ui/panes.rs`, `src/ui/hoarder_dock_header.rs` | New `docked_pane_*` fns mirroring the popup trio, plus the `‹ Title ›` header. The header duplicates tab-bar geometry rather than sharing it, so upstream tab-bar changes cannot conflict. |
 | Input | `src/app/input/{mod,mouse,terminal,navigate}.rs` | Early-dispatch lines; keep them one-liners into `hoarder_dock.rs`. |
 | Persistence | `src/persist/{snapshot,restore,io}.rs` | Additive `Option` fields; old snapshots still load. |
 | Config | `src/config/{model,keybinds}.rs` | New keys + the `dock` custom-command type. |

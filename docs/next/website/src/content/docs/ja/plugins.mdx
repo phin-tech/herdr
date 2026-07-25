@@ -326,6 +326,10 @@ Settings、コピーモード、または別の Herdr モーダルが開いて�
 複数のプラグインを同時にドッキングできます。既にドッキング済みのエントリポイントに
 対する `plugin.pane.open` は、2つ目のコピーを起動するのではなくそのペインを前面に
 出してフォーカスするため、トグル用のキーバインドは冪等です。
+複数がドッキングされている場合、ドックにヘッダー行が表示され、クリック可能な `‹` と
+`›` の矢印の間にアクティブなペインのマニフェスト `title` が表示されます。
+`keys.next_dock_pane` と `keys.previous_dock_pane` はキーボードから同じ操作を行い、
+既定では未割り当てです。
 `width`、`height`、`workspace_id`、`target_pane_id`、
 `direction` は受け付けません。ドックのサイズはプラグインではなくユーザー(ディバイダーの
 ドラッグ、または `ui.dock_right_width`/`ui.dock_right_min_width`/`ui.dock_right_max_width`

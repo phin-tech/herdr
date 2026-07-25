@@ -618,6 +618,7 @@ impl App {
                 pane_infos: Vec::new(),
                 split_borders: Vec::new(),
                 dock_right_rect: Rect::default(),
+                dock_header: crate::ui::DockHeaderView::default(),
                 dock_right_divider_rect: Rect::default(),
             },
             drag: None,

@@ -536,6 +536,18 @@
           "description": "Move keyboard focus into/out of the right-docked plugin pane region."
         },
         {
+          "key": "keys.next_dock_pane",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Show the next plugin docked to the right. Unset by default."
+        },
+        {
+          "key": "keys.previous_dock_pane",
+          "type": "keybinding",
+          "default": "unset",
+          "description": "Show the previous plugin docked to the right. Unset by default."
+        },
+        {
           "key": "keys.indexed.tabs",
           "type": "string",
           "default": "unset",

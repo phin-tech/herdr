@@ -420,6 +420,8 @@ pub struct KeysConfig {
     pub toggle_dock_right: BindingConfig,
     /// Move keyboard focus into/out of the right-docked plugin pane region. Unset by default.
     pub focus_dock_right: BindingConfig,
+    pub next_dock_pane: BindingConfig,
+    pub previous_dock_pane: BindingConfig,
     /// Optional indexed shortcuts expanded over number keys 1-9.
     pub indexed: IndexedKeysConfig,
     /// Prefix-mode custom command bindings.
@@ -542,6 +544,8 @@ pub(crate) struct KeysConfigOverlay {
     toggle_dock_right: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     focus_dock_right: Option<BindingConfig>,
+    next_dock_pane: Option<BindingConfig>,
+    previous_dock_pane: Option<BindingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     indexed: Option<IndexedKeysConfig>,
     #[serde(skip_serializing)]
@@ -620,6 +624,8 @@ impl<'de> Deserialize<'de> for KeysConfig {
         apply_field!(toggle_sidebar);
         apply_field!(toggle_dock_right);
         apply_field!(focus_dock_right);
+        apply_field!(next_dock_pane);
+        apply_field!(previous_dock_pane);
         apply_field!(indexed);
         apply_field!(command);
 
@@ -720,6 +726,8 @@ impl KeysConfig {
         copy_effective_action_field!(toggle_sidebar, keybinds.toggle_sidebar);
         copy_effective_action_field!(toggle_dock_right, keybinds.toggle_dock_right);
         copy_effective_action_field!(focus_dock_right, keybinds.focus_dock_right);
+        copy_effective_action_field!(next_dock_pane, keybinds.next_dock_pane);
+        copy_effective_action_field!(previous_dock_pane, keybinds.previous_dock_pane);
         copy_user_field!(indexed);
 
         profile
@@ -995,6 +1003,8 @@ impl Default for KeysConfig {
             toggle_sidebar: BindingConfig::one("prefix+b"),
             toggle_dock_right: BindingConfig::one("prefix+shift+b"),
             focus_dock_right: BindingConfig::one("prefix+shift+f"),
+            next_dock_pane: BindingConfig::empty(),
+            previous_dock_pane: BindingConfig::empty(),
             indexed: IndexedKeysConfig::default(),
             command: Vec::new(),
             user_fields: BTreeSet::new(),

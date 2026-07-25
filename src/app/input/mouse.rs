@@ -446,6 +446,21 @@ impl AppState {
                 if self.docked_pane().is_some()
                     && rect_contains(self.view.dock_right_rect, mouse.column, mouse.row)
                 {
+                    // Header arrows switch panes without stealing focus, so
+                    // clicking through docks does not yank the keyboard out of
+                    // whatever pane you were typing in.
+                    let header = self.view.dock_header;
+                    if rect_contains(header.prev_hit_area, mouse.column, mouse.row) {
+                        self.cycle_docked_pane(false);
+                        return None;
+                    }
+                    if rect_contains(header.next_hit_area, mouse.column, mouse.row) {
+                        self.cycle_docked_pane(true);
+                        return None;
+                    }
+                    if rect_contains(header.row, mouse.column, mouse.row) {
+                        return None;
+                    }
                     self.dock_focused = true;
                     if self.mode != Mode::Terminal {
                         self.mode = Mode::Terminal;

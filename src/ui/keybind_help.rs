@@ -151,6 +151,11 @@ pub(super) fn keybind_help_groups(app: &AppState) -> Vec<HelpGroup> {
             "collapse/expand right dock",
         ),
         help_entry(keybind_label(&kb.focus_dock_right), "focus right dock"),
+        help_entry(keybind_label(&kb.next_dock_pane), "next docked pane"),
+        help_entry(
+            keybind_label(&kb.previous_dock_pane),
+            "previous docked pane",
+        ),
         help_entry(keybind_label(&kb.focus_pane_left), "focus pane left"),
         help_entry(keybind_label(&kb.focus_pane_down), "focus pane down"),
         help_entry(keybind_label(&kb.focus_pane_up), "focus pane up"),

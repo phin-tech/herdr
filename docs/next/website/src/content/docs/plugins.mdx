@@ -329,7 +329,11 @@ window as a persistent, resizable, collapsible chrome region that coexists
 with the tiled workspace panes, instead of floating over them like a popup.
 Several plugins may hold docks at once. Opening an entrypoint that is already
 docked focuses it and brings it to the front rather than spawning a second
-copy, so a toggle keybinding is idempotent. It does not accept `width`,
+copy, so a toggle keybinding is idempotent. When more than one is docked the
+dock grows a header row showing the active pane's manifest `title` between
+clickable `‹` and `›` arrows; the `keys.next_dock_pane` and
+`keys.previous_dock_pane` bindings do the same from the keyboard and are unset
+by default. It does not accept `width`,
 `height`, `workspace_id`, `target_pane_id`,
 or `direction` — the dock's size is controlled by the user (drag the divider,
 or the `ui.dock_right_width`/`ui.dock_right_min_width`/`ui.dock_right_max_width`
