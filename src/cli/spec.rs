@@ -41,7 +41,8 @@ pub(super) fn command() -> Command {
         .subcommand(terminal_command())
         .subcommand(session_command())
         .subcommand(integration_command())
-        .subcommand(plugin_command());
+        .subcommand(plugin_command())
+        .subcommand(dock_command());
     configure_help(command, true)
 }
 
@@ -971,6 +972,13 @@ fn required(name: &'static str, value_name: &'static str) -> Arg {
 
 fn path_arg(name: &'static str, value_name: &'static str) -> Arg {
     required(name, value_name).value_hint(ValueHint::AnyPath)
+}
+
+fn dock_command() -> Command {
+    Command::new("dock")
+        .about("Open a plugin pane in the right-hand dock")
+        .arg(required("plugin_id", "PLUGIN_ID"))
+        .arg(required("entrypoint", "ENTRYPOINT"))
 }
 
 #[cfg(test)]

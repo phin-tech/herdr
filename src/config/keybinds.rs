@@ -83,6 +83,10 @@ pub enum CommandKeybindType {
     Pane,
     Popup,
     PluginAction,
+    /// Open a plugin pane in the right-hand dock. `command` is
+    /// `<plugin-id>.<entrypoint-id>`. Pressing it again closes the dock, so a
+    /// single binding toggles a persistent side panel.
+    Dock,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -122,6 +126,7 @@ pub enum CustomCommandAction {
     Pane,
     Popup,
     PluginAction,
+    Dock,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -762,6 +767,7 @@ fn append_custom_command_bindings(
             CommandKeybindType::Pane => CustomCommandAction::Pane,
             CommandKeybindType::Popup => CustomCommandAction::Popup,
             CommandKeybindType::PluginAction => CustomCommandAction::PluginAction,
+            CommandKeybindType::Dock => CustomCommandAction::Dock,
         };
         let (width, height) = if action == CustomCommandAction::Popup {
             (command.width, command.height)

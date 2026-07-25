@@ -557,6 +557,7 @@ fn main() -> io::Result<()> {
         println!("       herdr notification <subcommand> ...");
         println!("       herdr agent <subcommand> ...");
         println!("       herdr pane <subcommand> ...");
+        println!("       herdr dock <plugin-id> <entrypoint-id>");
         println!("       herdr session <subcommand> ...");
         println!("       herdr integration <subcommand> ...");
         println!();
@@ -688,6 +689,7 @@ fn main() -> io::Result<()> {
                 "workspace",
                 "worktree",
                 "pane",
+                "dock",
                 "session",
                 "integration",
             ]

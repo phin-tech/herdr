@@ -785,6 +785,9 @@ impl App {
             crate::config::CustomCommandAction::PluginAction => self
                 .invoke_plugin_action_from_keybind(binding.command.clone())
                 .map_err(std::io::Error::other),
+            crate::config::CustomCommandAction::Dock => self
+                .toggle_dock_pane_from_keybind(binding.command.clone())
+                .map_err(std::io::Error::other),
         };
         match result {
             Ok(()) => finish_custom_command_context(&mut self.state, context, previous_mode),

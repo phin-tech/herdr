@@ -222,6 +222,41 @@ impl App {
         )
     }
 
+    /// Toggle a plugin pane in the right-hand dock from a keybinding.
+    /// `target` is `<plugin-id>.<entrypoint-id>`. When the dock already holds
+    /// a pane it is closed, so one binding both shows and hides the panel.
+    pub(crate) fn toggle_dock_pane_from_keybind(&mut self, target: String) -> Result<(), String> {
+        if self.state.docked_pane.is_some() {
+            self.close_docked_pane();
+            return Ok(());
+        }
+        let (plugin_id, entrypoint) = target
+            .rsplit_once('.')
+            .ok_or_else(|| format!("expected <plugin-id>.<entrypoint-id>, got '{target}'"))?;
+        let response = self.handle_plugin_pane_open(
+            "keybind:dock".to_string(),
+            crate::api::schema::PluginPaneOpenParams {
+                plugin_id: plugin_id.to_string(),
+                entrypoint: entrypoint.to_string(),
+                placement: Some(crate::api::schema::PluginPanePlacement::SidebarRight),
+                width: None,
+                height: None,
+                workspace_id: None,
+                target_pane_id: None,
+                direction: None,
+                cwd: None,
+                focus: false,
+                env: Default::default(),
+            },
+        );
+        // handle_plugin_pane_open encodes its own JSON response; surface the
+        // error text so the keybinding path can toast it.
+        match serde_json::from_str::<crate::api::schema::ErrorResponse>(&response) {
+            Ok(err) => Err(err.error.message),
+            Err(_) => Ok(()),
+        }
+    }
+
     pub(crate) fn invoke_plugin_action_from_keybind(
         &mut self,
         action_id: String,

@@ -1665,6 +1665,28 @@ fn print_plugin_pane_help() {
     eprintln!("  herdr plugin pane close <pane_id>");
 }
 
+/// `hoarder dock <plugin-id> <entrypoint-id>` -- shorthand for opening a
+/// plugin pane into the right-hand dock. Equivalent to
+/// `plugin pane open --plugin ID --entrypoint ID --placement sidebar-right`.
+pub(super) fn run_dock_command(args: &[String]) -> std::io::Result<i32> {
+    let (Some(plugin_id), Some(entrypoint)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: herdr dock <plugin-id> <entrypoint-id>");
+        eprintln!("  opens the plugin pane in the right-hand dock");
+        return Ok(2);
+    };
+    let forwarded = [
+        "pane".to_string(),
+        "open".to_string(),
+        "--plugin".to_string(),
+        plugin_id.clone(),
+        "--entrypoint".to_string(),
+        entrypoint.clone(),
+        "--placement".to_string(),
+        "sidebar-right".to_string(),
+    ];
+    run_plugin_command(&forwarded)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
