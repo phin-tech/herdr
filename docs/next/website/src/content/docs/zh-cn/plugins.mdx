@@ -299,6 +299,12 @@ split、tab、zoomed 和 overlay 插件窗格打开后就是普通的 Herdr 窗�
 同一个窗格;裸写的 `dock_right` 是当前显示窗格的别名。停靠的进程不会在 Herdr 重启后恢复;和左侧边栏一样,
 只有停靠区域的宽度和折叠状态会被持久化。
 
+每次插件窗格启动还会导出 `HERDR_PLUGIN_PLACEMENT`,其值与 `plugin.pane.open` 接受的
+令牌相同(`overlay`、`popup`、`split`、`tab`、`zoomed`、`sidebar-right`)。插件可以
+据此选择适合其位置的布局——狭窄的停靠区域需要与全宽弹窗不同的界面。此外,本分支
+启动的每个窗格和插件进程都会看到 `HOARDER_ENV=1`。
+
+
 ```toml
 [[panes]]
 id = "notes"

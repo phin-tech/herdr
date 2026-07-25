@@ -7,6 +7,15 @@ use crate::api::schema::{
 };
 use crate::app::App;
 
+/// Wire token for a placement, matching the `plugin.pane.open` API value so a
+/// plugin sees exactly the string it would have passed.
+pub(crate) fn placement_env_value(placement: PluginPanePlacement) -> String {
+    serde_json::to_value(placement)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .unwrap_or_else(|| "overlay".to_string())
+}
+
 impl App {
     pub(super) fn open_plugin_popup_pane(
         &mut self,
@@ -16,11 +25,16 @@ impl App {
         pane: PluginManifestPane,
     ) -> String {
         let context = self.current_plugin_context("plugin-pane");
-        let extra_env =
-            match self.plugin_pane_launch_env(plugin, &pane.id, params.env.clone(), &context) {
-                Ok(env) => env,
-                Err((code, message)) => return encode_error(id, &code, message),
-            };
+        let extra_env = match self.plugin_pane_launch_env(
+            plugin,
+            &pane.id,
+            params.env.clone(),
+            &context,
+            PluginPanePlacement::Popup,
+        ) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
         let cwd = Some(self.plugin_pane_cwd(plugin, params.cwd));
         let width = params.width.or(pane.width);
         let height = params.height.or(pane.height);
@@ -49,11 +63,16 @@ impl App {
         pane: PluginManifestPane,
     ) -> String {
         let context = self.current_plugin_context("plugin-pane");
-        let extra_env =
-            match self.plugin_pane_launch_env(plugin, &pane.id, params.env.clone(), &context) {
-                Ok(env) => env,
-                Err((code, message)) => return encode_error(id, &code, message),
-            };
+        let extra_env = match self.plugin_pane_launch_env(
+            plugin,
+            &pane.id,
+            params.env.clone(),
+            &context,
+            PluginPanePlacement::SidebarRight,
+        ) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
         let cwd = Some(self.plugin_pane_cwd(plugin, params.cwd));
         let identity = crate::app::hoarder_dock::DockedPaneIdentity {
             plugin_id: plugin.plugin_id.clone(),
@@ -116,11 +135,16 @@ impl App {
         pane: PluginManifestPane,
     ) -> String {
         let context = self.current_plugin_context("plugin-pane");
-        let extra_env =
-            match self.plugin_pane_launch_env(plugin, &pane.id, params.env.clone(), &context) {
-                Ok(env) => env,
-                Err((code, message)) => return encode_error(id, &code, message),
-            };
+        let extra_env = match self.plugin_pane_launch_env(
+            plugin,
+            &pane.id,
+            params.env.clone(),
+            &context,
+            PluginPanePlacement::Overlay,
+        ) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
         let cwd = Some(self.plugin_pane_cwd(plugin, params.cwd));
         let (ws_idx, new_pane) =
             match self.spawn_overlay_argv_command(&pane.command, cwd, extra_env, Vec::new()) {
@@ -165,11 +189,16 @@ impl App {
             );
         };
         let context = self.plugin_context_for_pane(ws_idx, target_pane, "plugin-pane");
-        let extra_env =
-            match self.plugin_pane_launch_env(plugin, &pane.id, params.env.clone(), &context) {
-                Ok(env) => env,
-                Err((code, message)) => return encode_error(id, &code, message),
-            };
+        let extra_env = match self.plugin_pane_launch_env(
+            plugin,
+            &pane.id,
+            params.env.clone(),
+            &context,
+            placement,
+        ) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
         let direction = match params
             .direction
             .unwrap_or(crate::api::schema::SplitDirection::Right)
@@ -252,11 +281,16 @@ impl App {
         };
         let cwd = self.plugin_pane_cwd(plugin, params.cwd);
         let context = self.plugin_context_for_workspace(ws_idx, "plugin-pane");
-        let extra_env =
-            match self.plugin_pane_launch_env(plugin, &pane.id, params.env.clone(), &context) {
-                Ok(env) => env,
-                Err((code, message)) => return encode_error(id, &code, message),
-            };
+        let extra_env = match self.plugin_pane_launch_env(
+            plugin,
+            &pane.id,
+            params.env.clone(),
+            &context,
+            PluginPanePlacement::Tab,
+        ) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
         let (rows, cols) = self.state.estimate_pane_size();
         let Some(ws) = self.state.workspaces.get_mut(ws_idx) else {
             return encode_error(id, "workspace_not_found", "workspace not found");
@@ -294,12 +328,16 @@ impl App {
         )
     }
 
+    /// Environment shared by every plugin pane launch. `placement` is exported
+    /// so a plugin can adapt its layout to where it was put -- a narrow
+    /// sidebar dock wants a different rendering than a full-width popup.
     fn plugin_pane_launch_env(
         &self,
         plugin: &InstalledPluginInfo,
         entrypoint: &str,
         env: std::collections::HashMap<String, String>,
         context: &PluginInvocationContext,
+        placement: PluginPanePlacement,
     ) -> Result<Vec<(String, String)>, (String, String)> {
         let mut env = super::super::env::normalize_launch_env(env)?;
         let context_json = serde_json::to_string(&context)
@@ -323,6 +361,10 @@ impl App {
             entrypoint.to_string(),
         ));
         env.push(("HERDR_PLUGIN_CONTEXT_JSON".to_string(), context_json));
+        env.push((
+            "HERDR_PLUGIN_PLACEMENT".to_string(),
+            placement_env_value(placement),
+        ));
         if let Ok(current_exe) = std::env::current_exe() {
             env.push((
                 "HERDR_BIN_PATH".to_string(),
@@ -417,6 +459,7 @@ fn plugin_pane_protected_env_key(key: &str) -> bool {
             | "HERDR_PLUGIN_CONFIG_DIR"
             | "HERDR_PLUGIN_STATE_DIR"
             | "HERDR_PLUGIN_ENTRYPOINT_ID"
+            | "HERDR_PLUGIN_PLACEMENT"
             | "HERDR_PLUGIN_CONTEXT_JSON"
             | "HERDR_BIN_PATH"
     )

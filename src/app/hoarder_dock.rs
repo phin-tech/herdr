@@ -430,6 +430,26 @@ mod tests {
         assert!(app.state.dock_active < app.state.docked_panes.len());
     }
 
+    /// A plugin adapts its layout to where it was put, so the placement token
+    /// it receives must match the `plugin.pane.open` API value exactly.
+    #[test]
+    fn placement_env_values_match_the_api_tokens() {
+        use crate::api::schema::PluginPanePlacement as P;
+        for (placement, expected) in [
+            (P::Overlay, "overlay"),
+            (P::Popup, "popup"),
+            (P::Split, "split"),
+            (P::Tab, "tab"),
+            (P::Zoomed, "zoomed"),
+            (P::SidebarRight, "sidebar-right"),
+        ] {
+            assert_eq!(
+                crate::app::api::plugins::panes::placement_env_value(placement),
+                expected
+            );
+        }
+    }
+
     #[test]
     fn cycling_wraps_in_both_directions() {
         let mut app = app_with_dock();

@@ -1,7 +1,7 @@
 mod context;
 mod env;
 mod manifest;
-mod panes;
+pub(crate) mod panes;
 mod runtime;
 
 use super::responses::{encode_error, encode_success};

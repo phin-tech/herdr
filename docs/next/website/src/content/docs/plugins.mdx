@@ -346,6 +346,14 @@ pane is currently showing. The docked process is not restored across a Herdr
 restart — only the dock's width and collapsed state persist, the same as the
 left sidebar.
 
+Every plugin pane launch also exports `HERDR_PLUGIN_PLACEMENT`, holding the
+same token `plugin.pane.open` accepts (`overlay`, `popup`, `split`, `tab`,
+`zoomed`, `sidebar-right`). A plugin can branch on it to render a layout that
+suits where it was put — a narrow dock wants different chrome than a
+full-width popup. Panes docked to the right also see `HOARDER_ENV=1`, as does
+every pane and plugin process this fork spawns.
+
+
 ```toml
 [[panes]]
 id = "notes"
