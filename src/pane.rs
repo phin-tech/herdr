@@ -113,6 +113,7 @@ fn apply_pane_launch_env(cmd: &mut CommandBuilder, launch_env: &PaneLaunchEnv) {
         cmd.env(key, value);
     }
     cmd.env(crate::HERDR_ENV_VAR, crate::HERDR_ENV_VALUE);
+    cmd.env(crate::HOARDER_ENV_VAR, crate::HOARDER_ENV_VALUE);
     crate::integration::apply_pane_base_env(cmd);
     match &launch_env.identity {
         PaneLaunchIdentity::Inherit => {}
@@ -2867,6 +2868,30 @@ impl PaneRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every pane this fork spawns advertises HOARDER_ENV so a script can tell
+    /// it is inside hoarder rather than upstream herdr. HERDR_ENV stays set
+    /// alongside it — plugins and integrations key off that one.
+    #[test]
+    fn pane_launch_env_advertises_both_hoarder_and_herdr() {
+        let mut cmd = CommandBuilder::new("sh");
+        apply_pane_launch_env(&mut cmd, &PaneLaunchEnv::default());
+
+        let vars: std::collections::HashMap<String, String> = cmd
+            .iter_full_env_as_str()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        assert_eq!(
+            vars.get(crate::HOARDER_ENV_VAR).map(String::as_str),
+            Some(crate::HOARDER_ENV_VALUE)
+        );
+        assert_eq!(
+            vars.get(crate::HERDR_ENV_VAR).map(String::as_str),
+            Some(crate::HERDR_ENV_VALUE),
+            "HERDR_ENV must stay set or every installed plugin breaks"
+        );
+    }
 
     #[tokio::test]
     async fn cwd_returns_accepted_report_without_rechecking_filesystem() {

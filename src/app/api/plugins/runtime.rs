@@ -43,6 +43,10 @@ impl App {
                 crate::api::socket_path().display().to_string(),
             ),
             ("HERDR_ENV".to_string(), "1".to_string()),
+            (
+                crate::HOARDER_ENV_VAR.to_string(),
+                crate::HOARDER_ENV_VALUE.to_string(),
+            ),
             ("HERDR_PLUGIN_ID".to_string(), plugin.plugin_id.clone()),
             ("HERDR_PLUGIN_CONTEXT_JSON".to_string(), context_json),
         ]);

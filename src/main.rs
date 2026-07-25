@@ -10,6 +10,12 @@ use crossterm::execute;
 
 pub(crate) const HERDR_ENV_VAR: &str = "HERDR_ENV";
 pub(crate) const HERDR_ENV_VALUE: &str = "1";
+/// Set alongside `HERDR_ENV` in every pane this fork spawns, so a script can
+/// tell it is inside hoarder specifically rather than upstream herdr. Both are
+/// set: plugins and integrations key off `HERDR_ENV`, and removing it would
+/// break every installed plugin.
+pub(crate) const HOARDER_ENV_VAR: &str = "HOARDER_ENV";
+pub(crate) const HOARDER_ENV_VALUE: &str = "1";
 const NESTED_HERDR_MESSAGES: [&str; 6] = [
     "inception detected. we need to go deeper... said no one ever.",
     "recursion is a pathway to many abilities some consider to be... unnatural.",
