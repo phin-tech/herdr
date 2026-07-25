@@ -526,13 +526,13 @@
         {
           "key": "keys.toggle_dock_right",
           "type": "keybinding",
-          "default": "\"prefix+d\"",
+          "default": "\"prefix+shift+b\"",
           "description": "Collapse/expand the right-docked plugin pane region."
         },
         {
           "key": "keys.focus_dock_right",
           "type": "keybinding",
-          "default": "\"prefix+f\"",
+          "default": "\"prefix+shift+f\"",
           "description": "Move keyboard focus into/out of the right-docked plugin pane region."
         },
         {

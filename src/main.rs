@@ -211,8 +211,8 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # zoom = "prefix+z"       # legacy alias: fullscreen
 # resize_mode = "prefix+r"
 # toggle_sidebar = "prefix+b"
-# toggle_dock_right = "prefix+d"  # collapse/expand the right-docked plugin pane region
-# focus_dock_right = "prefix+f"   # move keyboard focus into/out of the right-docked plugin pane region
+# toggle_dock_right = "prefix+shift+b"  # collapse/expand the right-docked plugin pane region
+# focus_dock_right = "prefix+shift+f"   # move keyboard focus into/out of the right-docked plugin pane region
 
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
 # They are independent from focus_pane_*. Do not include prefix+, esc, enter, tab, or 1..9 here.
