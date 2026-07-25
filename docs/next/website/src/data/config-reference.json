@@ -526,14 +526,14 @@
         {
           "key": "keys.toggle_dock_right",
           "type": "keybinding",
-          "default": "unset",
-          "description": "Collapse/expand the right-docked plugin pane region. Unset by default."
+          "default": "\"prefix+d\"",
+          "description": "Collapse/expand the right-docked plugin pane region."
         },
         {
           "key": "keys.focus_dock_right",
           "type": "keybinding",
-          "default": "unset",
-          "description": "Move keyboard focus into/out of the right-docked plugin pane region. Unset by default."
+          "default": "\"prefix+f\"",
+          "description": "Move keyboard focus into/out of the right-docked plugin pane region."
         },
         {
           "key": "keys.indexed.tabs",
