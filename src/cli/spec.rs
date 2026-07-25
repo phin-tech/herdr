@@ -841,10 +841,13 @@ fn plugin_command() -> Command {
                         .about("Open a plugin pane")
                         .arg(option("plugin", "ID"))
                         .arg(option("entrypoint", "ID"))
-                        .arg(
-                            option("placement", "PLACEMENT")
-                                .value_parser(["overlay", "split", "tab", "zoomed"]),
-                        )
+                        .arg(option("placement", "PLACEMENT").value_parser([
+                            "overlay",
+                            "split",
+                            "tab",
+                            "zoomed",
+                            "sidebar-right",
+                        ]))
                         .arg(option("workspace", "ID"))
                         .arg(option("target-pane", "PANE"))
                         .arg(split_direction_option())
