@@ -910,6 +910,66 @@ action = "bootstrap"
         manifest
     }
 
+    /// The `[hoarder]` namespace exists because upstream Herdr ignores unknown
+    /// manifest keys but rejects placements it does not know. A pane declared
+    /// there can therefore name `sidebar-right` while the manifest still loads
+    /// on upstream, where the pane is simply invisible.
+    #[test]
+    fn hoarder_panes_add_fork_only_entrypoints_and_override_matching_ids() {
+        let root = unique_temp_path("plugin-hoarder-ns");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.hoarder-ns"
+name = "Hoarder NS"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "board"
+title = "Board"
+placement = "popup"
+command = ["sh", "-c", "true"]
+
+[[hoarder.panes]]
+id = "sidebar"
+title = "Docked"
+placement = "sidebar-right"
+command = ["sh", "-c", "true"]
+
+[[hoarder.panes]]
+id = "board"
+title = "Board docked"
+placement = "sidebar-right"
+command = ["sh", "-c", "true"]
+"#,
+        );
+        let plugin = load_plugin_manifest(root.to_str().expect("utf8 path"), true)
+            .expect("manifest should load");
+
+        let board = plugin
+            .panes
+            .iter()
+            .find(|pane| pane.id == "board")
+            .expect("board pane");
+        assert_eq!(
+            board.placement,
+            PluginPanePlacement::SidebarRight,
+            "a matching id should be replaced by its hoarder declaration"
+        );
+        assert_eq!(board.title, "Board docked");
+
+        let sidebar = plugin
+            .panes
+            .iter()
+            .find(|pane| pane.id == "sidebar")
+            .expect("fork-only pane should be added");
+        assert_eq!(sidebar.placement, PluginPanePlacement::SidebarRight);
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
     fn write_manifest_content(root: &std::path::Path, content: &str) -> std::path::PathBuf {
         std::fs::create_dir_all(root).unwrap();
         let manifest = root.join("herdr-plugin.toml");

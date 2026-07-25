@@ -31,6 +31,11 @@ struct RawPluginManifest {
     panes: Vec<RawPluginManifestPane>,
     #[serde(default)]
     link_handlers: Vec<RawPluginManifestLinkHandler>,
+    /// Fork-only namespace. Upstream Herdr ignores unknown manifest keys, so
+    /// anything under `[hoarder]` is invisible there -- which is what lets it
+    /// name placements and settings upstream would reject.
+    #[serde(default)]
+    hoarder: Option<RawPluginManifestHoarder>,
 }
 
 #[derive(serde::Deserialize)]
@@ -83,6 +88,15 @@ struct RawPluginManifestPane {
     #[serde(default)]
     height: Option<PopupSize>,
     command: Vec<String>,
+}
+
+/// Fork-only section. Upstream Herdr ignores unknown manifest keys, so panes
+/// declared here are invisible to it -- which is what lets them name a
+/// placement upstream would reject, such as `sidebar-right`.
+#[derive(serde::Deserialize, Default)]
+struct RawPluginManifestHoarder {
+    #[serde(default)]
+    panes: Vec<RawPluginManifestPane>,
 }
 
 #[derive(serde::Deserialize)]
@@ -191,6 +205,23 @@ pub(crate) fn load_plugin_manifest(
         .map(normalize_manifest_pane)
         .collect::<Result<Vec<_>, _>>()?;
     reject_duplicate_pane_ids(&panes)?;
+    // Panes from [[hoarder.panes]] are added after the portable ones. A
+    // matching id replaces its portable twin, so a manifest can either add a
+    // fork-only entrypoint or redeclare an existing one for this fork.
+    let hoarder_panes = raw
+        .hoarder
+        .unwrap_or_default()
+        .panes
+        .into_iter()
+        .map(normalize_manifest_pane)
+        .collect::<Result<Vec<_>, _>>()?;
+    reject_duplicate_pane_ids(&hoarder_panes)?;
+    for pane in hoarder_panes {
+        match panes.iter_mut().find(|existing| existing.id == pane.id) {
+            Some(existing) => *existing = pane,
+            None => panes.push(pane),
+        }
+    }
     panes.sort_by(|a, b| a.id.cmp(&b.id));
     let link_handlers = raw
         .link_handlers

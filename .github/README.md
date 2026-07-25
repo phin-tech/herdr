@@ -38,13 +38,71 @@ Upstream does have one docked chrome region — the left sidebar — but it rend
 | Resize / collapse | Full parity with the left sidebar — drag divider, collapse mode, config keys, session persistence. |
 | Modality | **Not** modal. Unlike the popup, focus moves freely between tiled panes and the dock. |
 
-Open one from a manifest (`placement = "sidebar-right"`) or at runtime:
+Open one at runtime:
 
 ```bash
-herdr plugin pane open <plugin> <entrypoint> --placement sidebar-right
+hoarder dock <plugin> <entrypoint>
+# or, equivalently
+hoarder plugin pane open --plugin <id> --entrypoint <id> --placement sidebar-right
 ```
 
 Both `sidebar-right` and `sidebar_right` deserialize; the hyphenated form is what gets emitted.
+
+---
+
+## The `[hoarder]` manifest namespace
+
+A plugin cannot simply write `placement = "sidebar-right"` in `[[panes]]`.
+Upstream Herdr rejects placements it does not know, and it fails the **whole
+manifest** — every action, hook and pane goes with it:
+
+```
+unknown variant `sidebar-right`, expected one of `overlay`, `popup`, `split`, `tab`, `zoomed`
+```
+
+Upstream *does* silently ignore unknown manifest **keys**, though. So this fork
+reads a `[hoarder]` namespace that upstream never sees:
+
+```toml
+[[panes]]
+id = "board"
+title = "Board"
+placement = "popup"          # what upstream Herdr uses
+command = ["sh", "-c", 'exec "$HERDR_PLUGIN_ROOT/bin/board"']
+
+[[hoarder.panes]]
+id = "sidebar"
+title = "Board"
+placement = "sidebar-right"  # invisible to upstream
+command = ["sh", "-c", 'exec "$HERDR_PLUGIN_ROOT/bin/board" sidebar']
+```
+
+| | hoarder | upstream Herdr |
+|---|---|---|
+| `board` | `popup` | `popup` |
+| `sidebar` | `sidebar-right` | not present |
+
+A `[[hoarder.panes]]` entry whose `id` matches an existing pane **replaces** it,
+so a manifest can either add a fork-only entrypoint or redeclare an existing one
+for this fork. One manifest, one plugin, works on both runtimes.
+
+The namespace is deliberately general — future fork-only settings go under
+`[hoarder]` rather than accumulating prefixed keys.
+
+### Environment a plugin can rely on
+
+| Variable | Meaning |
+|---|---|
+| `HOARDER_ENV=1` | Set in every pane and plugin process this fork spawns |
+| `HERDR_PLUGIN_PLACEMENT` | Where the pane was opened: `overlay`, `popup`, `split`, `tab`, `zoomed`, `sidebar-right` |
+
+`HERDR_ENV` stays set alongside `HOARDER_ENV`. Plugins and the shell
+integrations read that name, so replacing it would break every installed
+plugin.
+
+Prefer a separate `[[hoarder.panes]]` entrypoint over sniffing
+`HERDR_PLUGIN_PLACEMENT` when the docked rendering is genuinely different code
+— it is explicit, and it keeps the two paths independently testable.
 
 ---
 
