@@ -18,11 +18,22 @@ const KNOWN_TOP_LEVEL_CONFIG_KEYS: &[&str] = &[
     "worktrees",
 ];
 
+/// This fork ships as `hoarder` so it installs alongside upstream herdr.
+/// Config, state, sockets, logs, the plugin registry and `session.json` all
+/// hang off `config_dir()`, so this constant is what keeps the two installs
+/// from sharing state.
+///
+/// Debug builds deliberately keep upstream's `herdr-dev`: the integration
+/// harness hardcodes `<XDG_CONFIG_HOME>/herdr-dev`, and tests only ever run
+/// debug builds while users only ever run release ones. Renaming the debug
+/// directory makes upstream tests start reading config files they write but
+/// have never actually loaded, which changes server behaviour and breaks a
+/// dozen of them. See hoarder/FORK.md.
 pub fn app_dir_name() -> &'static str {
     if cfg!(debug_assertions) {
         "herdr-dev"
     } else {
-        "herdr"
+        "hoarder"
     }
 }
 

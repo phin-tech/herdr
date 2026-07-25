@@ -459,7 +459,7 @@ fn main() -> io::Result<()> {
         Ok(args) => args,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'hoarder --help' for usage");
             std::process::exit(2);
         }
     };
@@ -467,7 +467,7 @@ fn main() -> io::Result<()> {
         Ok(parsed) => parsed,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'hoarder --help' for usage");
             std::process::exit(2);
         }
     };
@@ -482,7 +482,7 @@ fn main() -> io::Result<()> {
         })
     {
         eprintln!("error: --remote can only be used with the default launch command");
-        eprintln!("run 'herdr --help' for usage");
+        eprintln!("run 'hoarder --help' for usage");
         std::process::exit(2);
     }
 
@@ -536,40 +536,43 @@ fn main() -> io::Result<()> {
     }
 
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("herdr — terminal workspace manager for AI coding agents");
+        println!("hoarder — terminal workspace manager for AI coding agents");
         println!();
-        println!("Usage: herdr [options]");
-        println!("       herdr --session <name> [options]");
-        println!("       herdr --remote <ssh-target> [--session <name>]");
-        println!("       herdr session attach <name>");
-        println!("       herdr completion zsh");
-        println!("       herdr update [--handoff]");
-        println!("       herdr channel set <stable|preview>");
-        println!("       herdr server stop");
-        println!("       herdr server reload-config");
-        println!("       herdr api <subcommand> ...");
-        println!("       herdr completion <shell>");
-        println!("       herdr config <subcommand> ...");
-        println!("       herdr channel <subcommand> ...");
-        println!("       herdr workspace <subcommand> ...");
-        println!("       herdr worktree <subcommand> ...");
-        println!("       herdr tab <subcommand> ...");
-        println!("       herdr notification <subcommand> ...");
-        println!("       herdr agent <subcommand> ...");
-        println!("       herdr pane <subcommand> ...");
-        println!("       herdr dock <plugin-id> <entrypoint-id>");
-        println!("       herdr session <subcommand> ...");
-        println!("       herdr integration <subcommand> ...");
+        println!("Usage: hoarder [options]");
+        println!("       hoarder --session <name> [options]");
+        println!("       hoarder --remote <ssh-target> [--session <name>]");
+        println!("       hoarder session attach <name>");
+        println!("       hoarder completion zsh");
+        println!("       hoarder update [--handoff]");
+        println!("       hoarder channel set <stable|preview>");
+        println!("       hoarder server stop");
+        println!("       hoarder server reload-config");
+        println!("       hoarder api <subcommand> ...");
+        println!("       hoarder completion <shell>");
+        println!("       hoarder config <subcommand> ...");
+        println!("       hoarder channel <subcommand> ...");
+        println!("       hoarder workspace <subcommand> ...");
+        println!("       hoarder worktree <subcommand> ...");
+        println!("       hoarder tab <subcommand> ...");
+        println!("       hoarder notification <subcommand> ...");
+        println!("       hoarder agent <subcommand> ...");
+        println!("       hoarder pane <subcommand> ...");
+        println!("       hoarder dock <plugin-id> <entrypoint-id>");
+        println!("       hoarder session <subcommand> ...");
+        println!("       hoarder integration <subcommand> ...");
         println!();
         println!("Common commands:");
         for (command, description) in [
-            ("herdr", "Launch or attach to the persistent session"),
+            ("hoarder", "Launch or attach to the persistent session"),
             (
                 "herdr status [server|client]",
                 "Show local client and running server status",
             ),
-            ("herdr update", "Download and install the latest version"),
-            ("herdr completion zsh", "Generate shell completions for zsh"),
+            ("hoarder update", "Download and install the latest version"),
+            (
+                "hoarder completion zsh",
+                "Generate shell completions for zsh",
+            ),
             (
                 "herdr server stop",
                 "Stop the running server via the API socket",
@@ -602,7 +605,10 @@ fn main() -> io::Result<()> {
                 "herdr worktree <subcommand>",
                 "Git worktree helpers over the socket API",
             ),
-            ("herdr tab <subcommand>", "Tab helpers over the socket API"),
+            (
+                "hoarder tab <subcommand>",
+                "Tab helpers over the socket API",
+            ),
             (
                 "herdr notification <subcommand>",
                 "Notification helpers over the socket API",
@@ -674,7 +680,7 @@ fn main() -> io::Result<()> {
         let arg_name = arg.split_once('=').map(|(name, _)| name).unwrap_or(arg);
         if arg.starts_with('-') && !known_flags.contains(&arg_name) {
             eprintln!("unknown option: {arg}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'hoarder --help' for usage");
             std::process::exit(2);
         }
         if !arg.starts_with('-')
@@ -696,7 +702,7 @@ fn main() -> io::Result<()> {
             .contains(&arg.as_str())
         {
             eprintln!("unknown command: {arg}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'hoarder --help' for usage");
             std::process::exit(2);
         }
     }

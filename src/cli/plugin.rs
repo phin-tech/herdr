@@ -1670,7 +1670,7 @@ fn print_plugin_pane_help() {
 /// `plugin pane open --plugin ID --entrypoint ID --placement sidebar-right`.
 pub(super) fn run_dock_command(args: &[String]) -> std::io::Result<i32> {
     let (Some(plugin_id), Some(entrypoint)) = (args.first(), args.get(1)) else {
-        eprintln!("usage: herdr dock <plugin-id> <entrypoint-id>");
+        eprintln!("usage: hoarder dock <plugin-id> <entrypoint-id>");
         eprintln!("  opens the plugin pane in the right-hand dock");
         return Ok(2);
     };

@@ -7,7 +7,7 @@ Keep this current. When you touch an upstream file, add it here — the point is
 that a rebase never has to be archaeology.
 
 **Current size:** see `git diff --stat upstream/master`. Zero test-file
-divergence — that is deliberate, see Tier 2.
+divergence, deliberately — see Tier 2.
 
 ---
 
@@ -45,46 +45,43 @@ rarely touches the same lines.
 
 ---
 
-## Tier 2 — the `hoarder` rename (REVERTED — do not retry naively)
+## Tier 2 — the `hoarder` rename (low risk, via a debug/release split)
 
-Renaming `app_dir_name()` to `hoarder` was tried and backed out. Recording why,
-so it is not attempted again from scratch.
+The fork ships as `hoarder` and keeps its own `~/.config/hoarder/` so it can be
+installed and run alongside upstream herdr without sharing config, session
+state, plugins or logs.
 
-**What it bought:** `~/.config/hoarder/` instead of `~/.config/herdr/`, so the
-fork and upstream never share config, session state, plugins or logs.
+| Change | File | Notes |
+|---|---|---|
+| `app_dir_name()` → `hoarder` **in release only** | `src/config/io.rs` | Debug stays `herdr-dev`. See below — this is the whole trick. |
+| CLI display name and help text | `src/cli/spec.rs`, `src/main.rs` | ~16 usage strings, `override_usage` on several subcommands, plus the in-file `cli::spec::tests` assertions. Self-contained. |
 
-**What it cost:** 12 failing integration tests, in *both* directions.
+### Why release-only
 
-The root cause is an upstream test bug worth knowing about: the integration
+A first attempt renamed the directory unconditionally and broke **12
+integration tests**. The cause is an upstream bug worth knowing: the test
 harness writes `config.toml` into `<XDG_CONFIG_HOME>/herdr/`, but a debug build
-reads `<XDG_CONFIG_HOME>/herdr-dev/`. **Upstream's tests have never actually
-been reading the config they write.** Renaming the app dir accidentally made
-that config real, which changed server behaviour and broke tests that had been
-passing on the accident — `cross_area_two_clients_shared_view_...` and
+reads `<XDG_CONFIG_HOME>/herdr-dev/`. **Upstream's integration tests have never
+loaded the config they write.** Renaming the debug directory made that config
+real, which changed server behaviour and broke tests that had been passing on
+the accident — `cross_area_two_clients_shared_view_...` and
 `multi_client_broadcasts_...` among them.
 
-So the choice was: leave the tests alone and break them, or "fix" them and break
-a different set. Neither is worth a directory name.
+Tests only ever run debug builds; users only ever run release ones. So debug
+keeps upstream's name and the harness is untouched, while the shipped binary is
+fully isolated. **Zero test files diverge from upstream.**
 
-**How to get isolation instead** — environment, not code, zero divergence:
+If upstream ever fixes the harness path bug, the `cfg!(debug_assertions)` arm
+can collapse back to a single name.
 
-```sh
-XDG_CONFIG_HOME=~/.local/share/hoarder/config hoarder
-```
-
-`config_dir()` is `XDG_CONFIG_HOME/<app>`, and sockets, logs, the plugin
-registry and `session.json` all hang off it, so that one variable separates
-everything.
-
-If the rename is ever revisited, fix the upstream test-harness path bug first
-and send it upstream — then the rename is cheap.
-
-### Also deliberately NOT renamed
+### Deliberately NOT renamed
 
 - **Cargo package name** stays `herdr` — 31 `CARGO_BIN_EXE_herdr` references
-  across 10 test files. `hoarder --version` therefore prints `herdr <version>`.
-- **CLI display name, log filenames, socket filenames** — all still `herdr`.
-  Cosmetic, and each one has test assertions behind it.
+  across 10 test files. `hoarder --version` therefore prints `herdr <version>`,
+  and the built artifact is still `target/release/herdr`.
+- **Log and socket filenames** stay `herdr.log` / `herdr.sock` — they already
+  live inside `~/.config/hoarder/`, so the directory does the isolating, and
+  several tests assert on those names.
 - **`HERDR_*` env vars** — plugins read `HERDR_PLUGIN_ROOT`, `HERDR_ENV` and
   friends. Renaming breaks every installed plugin.
 
